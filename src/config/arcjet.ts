@@ -1,6 +1,11 @@
 import arcjet, { shield, detectBot, slidingWindow} from "@arcjet/node";
 
-if (!process.env.ARCJET_KEY && process.env.NODE_ENV !== "test") {
+// if (!process.env.ARCJET_KEY && process.env.NODE_ENV !== "test") {
+//     throw new Error('ARCJET_KEY env is required'); //DJ - not keen on exposing the name of security layer via err msg!
+// }
+
+//DJ - have expanded above orig code to support 'development' key used for NODE_ENV. Todo test this works
+if (!process.env.ARCJET_KEY && !['test', 'development'].includes(<string>process.env.NODE_ENV)) {
     throw new Error('ARCJET_KEY env is required'); //DJ - not keen on exposing the name of security layer via err msg!
 }
 
@@ -26,7 +31,7 @@ const aj = arcjet({
         slidingWindow({
             mode: 'LIVE',
             interval: '2s',
-            max: 5,
+            max: 10,
         })
     ],
 });

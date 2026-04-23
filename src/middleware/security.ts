@@ -9,8 +9,9 @@ const securityMiddleware = async (
     res: Response,
     next: NextFunction
 ) => {
-    // If NODE_ENV is TEST, skip security middleware
-    if (process.env.NODE_ENV === "test") {
+    // If NODE_ENV is TEST, skip security middleware (DJ, added DEV to this)
+    if (['test', 'development'].includes(<string>process.env.NODE_ENV)){
+    //if (process.env.NODE_ENV === "test") {
         return next();
     }
 
