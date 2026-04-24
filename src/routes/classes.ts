@@ -1,32 +1,12 @@
 import express from "express";
-//import {and, desc, eq, getTableColumns, ilike, or, sql} from "drizzle-orm";
-
 import {db} from "../db/index.js";
-//import {classes, departments, subjects} from '../db/schema/app.js'
 import {classes, departments, subjects, user} from '../db/schema/index.js'
 import {and, desc, eq, getTableColumns, ilike, or, sql} from "drizzle-orm";
 import {error} from "better-auth/api";
-//import { user } from '../db/schema/auth.js'
 
 const router = express.Router();
 
-router.post('/', async (req, res) => {
-    try {
-         const [createdClass] = await db
-             .insert(classes)
-             .values({...req.body, inviteCode: Math.random().toString(36).substring(2, 9), schedules: []})
-             .returning({ id: classes.id });
-
-         if(!createdClass) throw Error;
-
-         res.status(201).json({ data: createdClass });
-    } catch (e) {
-        console.error(`POST /classes error ${e}`);
-        res.status(500).json({ error: e})
-    }
-})
-
-//my attempt at get classes
+// Get all classes with optional search, filtering and pagination
 router.get("/", async (req, res) => {
     try {
         const {search, subject, teacher, page = 1, limit = 10} = req.query;
@@ -39,8 +19,8 @@ router.get("/", async (req, res) => {
         if (search) {
             filterConditions.push(
                 or(
-                     ilike(classes.name, `%${search}%`),
-                     ilike(classes.inviteCode, `%${search}%`)
+                    ilike(classes.name, `%${search}%`),
+                    ilike(classes.inviteCode, `%${search}%`)
                 )
             );
         }
@@ -102,6 +82,61 @@ router.get("/", async (req, res) => {
         res.status(500).json({ error: "Failed to get classes"});
     }
 });
+
+// Get class details with teacher, subject and department information
+router.get("/:id", async (req, res) => {
+    try{
+        const classId = Number(req.params.id);
+
+        if(!Number.isFinite(classId)) return res.status(400).json({error: 'No class found.'});
+
+        const [classDetails] = await db
+            .select({
+                ...getTableColumns(classes),
+                subject: {
+                    ...getTableColumns(subjects),
+                },
+                department: {
+                    ...getTableColumns(departments),
+                },
+                teacher: {
+                    ...getTableColumns(user),
+                },
+            })
+            .from(classes)
+            .leftJoin(subjects, eq(classes.subjectId, subjects.id))
+            .leftJoin(user, eq(classes.teacherId, user.id))
+            .leftJoin(departments, eq(subjects.departmentId, departments.id))
+            .where(eq(classes.id, classId))
+
+        if(!classDetails) return res.status(404).json({error: 'No class found.'});
+
+        res.status(200).json({data: classDetails});
+    }
+    catch (error) {
+        console.error("GET /classes/:id error:", error);
+        res.status(500).json({ error: "Failed to fetch class details" });
+    }
+
+})
+
+router.post('/', async (req, res) => {
+    try {
+         const [createdClass] = await db
+             .insert(classes)
+             .values({...req.body, inviteCode: Math.random().toString(36).substring(2, 9), schedules: []})
+             .returning({ id: classes.id });
+
+         if(!createdClass) throw Error;
+
+         res.status(201).json({ data: createdClass });
+    } catch (e) {
+        console.error(`POST /classes error ${e}`);
+        res.status(500).json({ error: e})
+    }
+})
+
+
 
 export default router;
 
