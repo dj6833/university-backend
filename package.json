@@ -9,7 +9,9 @@
     "start": "node dist/server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "db:seedBCK": "node -r esbuild-register src/db/seed.ts",
+    "db:seed": "node src/db/schema/seed.ts"
   },
   "keywords": [],
   "author": "",
@@ -24,9 +26,11 @@
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "drizzle-orm": "^0.45.1",
+    "drizzle-seed": "^0.3.1",
     "express": "^5.2.1"
   },
   "devDependencies": {
+    "@faker-js/faker": "^10.4.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.5.0",
