@@ -1,9 +1,8 @@
-//attempt to use dizzle-seed and then overwrite descriptive fields
-//possibly with inserts-via-drizzle-seed, and then update with realistic data?
 import { drizzle } from "drizzle-orm/neon-http";
 import "dotenv/config";
 import {neon} from "@neondatabase/serverless";
-import {seed, reset} from "drizzle-seed";
+import {reset} from "drizzle-seed";
+import { faker } from '@faker-js/faker';
 import * as schema from "../schema/index.js";
 
 const args = process.argv.slice(2);
@@ -26,29 +25,17 @@ else{
     console.log("User requested to retain existing DB records");
 }
 
-async function mainBASIC (){
-    console.log("Begin seeding");
-
-    await seed(db, schema, { count: 1000 } );
-
-    console.log("Seeding complete");
-    process.exit(0);
-}
-
 async function main (){
     console.log("Begin seeding");
     const deptNames = ["Science", "Engineering", "Education", "Medicine", "Business", "Art", "Law"];
-
-    await seed(db, schema).refine((funcs) => ({
-        departments: {
-            count: 5,
-            columns: {
-                code: funcs.firstName(),
-                name: funcs.valuesFromArray({ values: deptNames }),
-                description: funcs.loremIpsum()
-            }
-        }
-    }))
+    for (let index = 0; index < 10; index++) {
+        const department = await db.insert(schema.departments).values({
+            code: `DEP${index}`,
+            name: faker.helpers.arrayElement(deptNames),
+            description: faker.lorem.words({ min: 10, max: 20 })
+        }).returning();
+        const deptId = department[0]?.id;
+    }
 
     console.log("Seeding complete");
     process.exit(0);
