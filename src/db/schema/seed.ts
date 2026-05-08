@@ -5,7 +5,7 @@ import "dotenv/config";
 import {neon} from "@neondatabase/serverless";
 import {seed, reset} from "drizzle-seed";
 import * as schema from "../schema/index.js";
-import {classes, departments, subjects, user} from "../schema/index.js";
+import {account, classes, departments, subjects, user, verification} from "../schema/index.js";
 import {and, eq, sql} from "drizzle-orm";
 import { faker } from '@faker-js/faker';
 
@@ -53,7 +53,7 @@ async function main (){
     await seed(
         db,
         schema,
-        //{ count: 1000}
+        { count: 1000}
     ).refine((funcs) => ({
         departments: {
             count: 5,
@@ -88,6 +88,36 @@ async function main (){
     }))
 
     //****SECOND PASS TO IMPROVE DATA REQUIREMENTS NOT POSSIBLE WITH DRIZZLE-SEED.REFINE()***
+
+    //clear session (logged-in users) data, verification (2FA etc) as no benefit in drizzle seeding these; and create test user logins
+    /*
+    gary.benson987@outluke.com
+    test1234
+     */
+
+    await db.delete(schema.session)
+    await db.delete(schema.verification)
+
+    await db.insert(schema.user).values({
+        id:"LEf9ZncdKBzgxzC8fYrvHIXUimp4qWLU",name:"Gary Benson",email:"gary.benson987@outluke.com",emailVerified:false,image:"https://res.cloudinary.com/dnfko6vxu/image/upload/v1778277823/uploads/pa0ccyarnsf9qnih0jaa.jpg",role:"teacher",imageCldPubId:"uploads/pa0ccyarnsf9qnih0jaa"
+    })
+
+        // [{"id":"LEf9ZncdKBzgxzC8fYrvHIXUimp4qWLU","name":"Gary Benson","email":"gary.benson987@outluke.com","email_verified":false,"image":"https://res.cloudinary.com/dnfko6vxu/image/upload/v1778278753/uploads/cklarbrbpned3gdusklv.jpg","role":"teacher","image_cld_pub_id":"uploads/cklarbrbpned3gdusklv","created_at":"2026-05-08 22:19:49.573","updated_at":"2026-05-08 22:19:49.573"}]
+
+    await db.insert(schema.account).values({
+        id:"RdPIrXuGQYrgHTaHFXRO900ge9W0jaLw",
+        userId:"LEf9ZncdKBzgxzC8fYrvHIXUimp4qWLU",
+        accountId:"LEf9ZncdKBzgxzC8fYrvHIXUimp4qWLU",
+        providerId:"credential",
+        accessToken:null,
+        refreshToken:null,
+        idToken:null,
+        accessTokenExpiresAt:null,
+        refreshTokenExpiresAt:null,
+        scope:null,
+        password:"bed5c1b1398602091e3a4113a810fa44:1c9a1f9370d2281646297da05b5701fc5834cebdf709b7fdc59790ee5cbf27249b950b6831631f2d05c6834914d93278440350a07bc78c468612d93cedc0c30e"
+    })
+
     //Set departments.code to be only 6 digits
     await db.update(departments)
         .set({
