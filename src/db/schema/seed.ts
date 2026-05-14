@@ -5,16 +5,23 @@ import * as schema from "../schema/index.js";
 import {account, classes, departments, enrollments, subjects, user} from "../schema/index.js";
 import {faker} from '@faker-js/faker';
 import {generateSeedUsers} from "./seed-helper.js";
+import {getRandomInclusive} from "../../util/number.js";
 
-/**********************
-Seeding constants
-***********************/
-const usersToCreate:number = 100
+//region seeding-constants
+const usersToCreate:number = 185
 const adminsToCreate:number = 3
-const teacherPercentageToCreate:number = 0.15
-/**********************
-Seeding constants
-***********************/
+const teacherPercentageToCreate:number = 0.03
+const departmentsToCreate:number = 2 //max 10 supported currently
+//Randomise No. of Subjects per department using min & max here
+const minSubjectsPerDepartmentToCreate:number = 3 //max 10 supported currently
+const maxSubjectsPerDepartmentToCreate:number = 10 //max 10 supported currently
+//Randomise No. of classes per subject using min & max here
+const minClassesPerSubjectToCreate:number = 1 //max 5 supported currently
+const maxClassesPerDepartmentToCreate:number = 5 //max 5 supported currently
+//Randomise No. of class enrollments per student using min & max here
+const minClassesPerStudent:number = 0
+const maxClassesPerStudent:number = 8
+//endregion
 
 const args = process.argv.slice(2);
 const retainDBData = args.includes('--retain-db-data');
@@ -46,14 +53,6 @@ const generateInviteCode = (name: string) => {
 
 async function main() {
     console.log("Begin seeding");
-
-    // const classSeedImages = [
-    //     "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778254137/uploads/wdcp5b2s63rnpsn2qek6.jpg",
-    //     "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778254278/uploads/nidadu75sswsteekfpwj.jpg",
-    //     "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778254377/uploads/wtkdwgehm1nzt5ofitzi.jpg",
-    //     "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778254406/uploads/sydfwtkcv8bepf4pnw8t.jpg",
-    //     "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778254439/uploads/xijgsuhm8iubqm1clmf1.jpg"
-    // ];
 
     const classSeedImages = [
         "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778681018/salman-ahmad-felR0PqEqLM-unsplash_aikcte_8e0d99.jpg",
@@ -136,8 +135,9 @@ async function main() {
 
     // 2. Departments, Subjects, and Classes
     const allClassIds: number[] = [];
+    //const
 
-    for (const dept of seedData) {
+    for (const dept of seedData.slice(0,departmentsToCreate)) {
         const deptCode = dept.name.substring(0, 3).toUpperCase();
 
         const [newDept] = await db.insert(departments)
@@ -152,8 +152,10 @@ async function main() {
             throw new Error('newDept cannot be null');
         }
 
+        const noOfSubjectsToCreate = getRandomInclusive(minSubjectsPerDepartmentToCreate,maxSubjectsPerDepartmentToCreate);
+
         // Now iterating through subjects
-        for (const subjectData of dept.subjects) {
+        for (const subjectData of dept.subjects.slice(0,noOfSubjectsToCreate)) {
             const [newSubject] = await db.insert(subjects)
                 .values({
                     name: subjectData.name,
@@ -168,7 +170,9 @@ async function main() {
                 throw new Error('newSubject cannot be null');
             }
 
-            const classesToInsert = subjectData.classes.map((c) => {
+            const noOfClassesToCreate = getRandomInclusive(minClassesPerSubjectToCreate,maxClassesPerDepartmentToCreate);
+
+            const classesToInsert = subjectData.classes.slice(0,noOfClassesToCreate).map((c) => {
                 //const randomClassSeedImage = classSeedImages[Math.floor(Math.random() * classSeedImages.length)];
                 const imageCloudUrl = classSeedImages[Math.floor(Math.random() * classSeedImages.length)] || 'null';
                 //const imageCloudUrl = randomClassSeedImage?.imageCloudUrl || 'null';
@@ -203,7 +207,7 @@ async function main() {
     const enrollmentEntries = studentIds.flatMap((studentId) => {
         const randomClasses = [...allClassIds]
             .sort(() => 0.5 - Math.random())
-            .slice(0, 4);
+            .slice(0, getRandomInclusive(minClassesPerStudent,maxClassesPerStudent));
 
         return randomClasses.map((classId) => ({studentId, classId}));
     });

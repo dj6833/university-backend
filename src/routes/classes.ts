@@ -3,11 +3,14 @@ import { and, desc, eq, getTableColumns, ilike, or, sql } from "drizzle-orm";
 
 import {db} from "../db/index.js";
 import { classes, departments, enrollments, subjects, user } from "../db/schema/index.js";
+import {error} from "better-auth/api";
 
 const router = express.Router();
 
 // Get all classes with optional search, subject, teacher filters, and pagination
 router.get("/", async (req, res) => {
+    //throw new Error("fail");
+
     try {
         const {search, subject, teacher, page = 1, limit = 10} = req.query;
 
