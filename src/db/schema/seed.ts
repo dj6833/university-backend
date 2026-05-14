@@ -5,12 +5,12 @@ import * as schema from "../schema/index.js";
 import {account, classes, departments, enrollments, subjects, user} from "../schema/index.js";
 import {faker} from '@faker-js/faker';
 import {generateSeedUsers} from "./seed-helper.js";
-import {getRandomInclusive} from "../../util/number.js";
+import {getRandomInclusive} from "../../lib/utils.js";
 
 //region seeding-constants
-const usersToCreate:number = 185
+const usersToCreate:number = 200
 const adminsToCreate:number = 3
-const teacherPercentageToCreate:number = 0.03
+const teacherPercentageToCreate:number = 0.05
 const departmentsToCreate:number = 2 //max 10 supported currently
 //Randomise No. of Subjects per department using min & max here
 const minSubjectsPerDepartmentToCreate:number = 3 //max 10 supported currently
