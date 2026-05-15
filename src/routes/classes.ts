@@ -9,8 +9,6 @@ const router = express.Router();
 
 // Get all classes with optional search, subject, teacher filters, and pagination
 router.get("/", async (req, res) => {
-    //throw new Error("fail");
-
     try {
         const {search, subject, teacher, page = 1, limit = 10} = req.query;
 
