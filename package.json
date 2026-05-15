@@ -11,7 +11,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:seed": "node src/db/seed/seed.ts"
+    "db:seed": "npm run build && node dist/db/seed/seed.js"
   },
   "keywords": [],
   "author": "",

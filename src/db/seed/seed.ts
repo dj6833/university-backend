@@ -1,6 +1,6 @@
 /*
 run using cmd:
- npm run build && node dist/db/seed/seed.js
+ npm run db:seed
 */
 
 import "dotenv/config";
