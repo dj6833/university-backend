@@ -3,7 +3,6 @@ import { and, desc, eq, getTableColumns, ilike, or, sql } from "drizzle-orm";
 
 import {db} from "../db/index.js";
 import { classes, departments, enrollments, subjects, user } from "../db/schema/index.js";
-import {error} from "better-auth/api";
 
 const router = express.Router();
 
