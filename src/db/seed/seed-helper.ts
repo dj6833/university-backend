@@ -1,5 +1,5 @@
 import { type InferSelectModel, type InferInsertModel } from "drizzle-orm";
-import {user} from "../schema/index.js";
+import {user} from "../schema";
 import {faker} from '@faker-js/faker';
 
 type newUser = InferInsertModel<typeof user>;

@@ -1,10 +1,17 @@
+/*
+run using cmd:
+ npm run build && node dist/db/schema/seed.js
+*/
+
 import "dotenv/config";
 import {neon} from "@neondatabase/serverless";
 import {reset} from "drizzle-seed";
-import * as schema from "../schema/index.js";
-import {account, classes, departments, enrollments, subjects, user} from "../schema/index.js";
-import {generateSeedUsers} from "./seed-helper.js";
-import {getRandomInclusive} from "../../lib/utils.js";
+import * as schema from "../schema";
+import {account, classes, departments, enrollments, subjects, user} from "../schema";
+import {generateSeedUsers} from "./seed-helper";
+import {getRandomInclusive} from "../../lib/utils";
+import {seedData} from "./seed-data";
+import {drizzle} from "drizzle-orm/neon-http";
 
 //region seeding-constants > >
 const usersToCreate:number = 200
@@ -39,9 +46,6 @@ if (!retainDBData) {
 } else {
     console.log("User requested to retain existing DB records");
 }
-
-import {seedData} from "./seed-data.js";
-import {drizzle} from "drizzle-orm/neon-http";
 
 const generateInviteCode = (name: string) => {
     const prefix = name.substring(0, 3).toUpperCase().replace(" ", "");
