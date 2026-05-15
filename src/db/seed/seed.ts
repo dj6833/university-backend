@@ -1,16 +1,16 @@
 /*
 run using cmd:
- npm run build && node dist/db/schema/seed.js
+ npm run build && node dist/db/seed/seed.js
 */
 
 import "dotenv/config";
 import {neon} from "@neondatabase/serverless";
 import {reset} from "drizzle-seed";
-import * as schema from "../schema";
-import {account, classes, departments, enrollments, subjects, user} from "../schema";
-import {generateSeedUsers} from "./seed-helper";
-import {getRandomInclusive} from "../../lib/utils";
-import {seedData} from "./seed-data";
+import * as schema from "../schema/index.js";
+import {account, classes, departments, enrollments, subjects, user} from "../schema/index.js";
+import {generateSeedUsers} from "./seed-helper.js";
+import {getRandomInclusive} from "../../lib/utils.js";
+import {seedData, classSeedImages} from "./seed-data.js";
 import {drizzle} from "drizzle-orm/neon-http";
 
 //region seeding-constants > >
@@ -55,42 +55,6 @@ const generateInviteCode = (name: string) => {
 
 async function main() {
     console.log("Begin seeding");
-
-    const classSeedImages = [
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778681018/salman-ahmad-felR0PqEqLM-unsplash_aikcte_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778681015/studio-humi-6dlOgFhHYZ8-unsplash_vsjivu_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778681011/sayyam-abbasi-m0hPqbPPrtM-unsplash_a0cg6v_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778681006/luky-triohandoko-eecTcKqXpz8-unsplash_u440sk_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778681001/luky-triohandoko-ugGd6GTRYcQ-unsplash_cmmlvd_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680997/vectorelements-yRqlDIz_Bbs-unsplash_hqfm9i_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680993/alghozy-YzLyge9ioO0-unsplash_ots8tj_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680989/rizki-kurniawan-Ycrcqbv4DD4-unsplash_vl3ntd_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680985/luky-triohandoko-vpsyXCvVT7Y-unsplash_omfazw_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680981/alghozy-d4EmRoplmf0-unsplash_ckaz9x_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680978/free-to-dive-AsM1O4dspWM-unsplash_l8ltjc_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680974/vectorelements-UI9uldv8S3c-unsplash_x4cuyn_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680970/alghozy-zlhicWfdYvQ-unsplash_gzjiyr_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680967/maulana-ahmad-JSvhPfmanAE-unsplash_vhfcrn_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680962/alghozy-lb2d4fffntE-unsplash_bluish_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680959/alghozy-nx4YXK8g2Wo-unsplash_jh7g27_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680955/marco-E0NzRN0P-kI-unsplash_v4jjht_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680951/remapstudio-NIRbWfpKhQ8-unsplash_nk8aps_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680948/free-to-dive-Qv_z-brUKoE-unsplash_xqd6fu_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680944/irvan-maulana-dvm3ujMot60-unsplash_jrk8l5_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680940/erone-stuff-BAchx1hvFiw-unsplash_zzmezf_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680936/alghozy-B1JfBtPq3iA-unsplash_pw4vjb_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680932/alghozy-eozqULtN00A-unsplash_yqtnen_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680927/muhammad-afandi-8ZEGmMZIQIM-unsplash_dy4cf9_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680924/free-to-dive-XNn9YFCjoiA-unsplash_xgetol_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680921/erone-stuff-JJq8SUNWTcA-unsplash_ppov6c_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680917/irvan-maulana-xF3spCnKUps-unsplash_wq14vx_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680914/irvan-maulana-H2mcXb2NOc8-unsplash_kiw8ko_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680910/salman-ahmad-CL-jQ9CVq6A-unsplash_dof3ty_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680906/ubaid-e-alyafizi-GLo363VtDr0-unsplash_ordty2_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680904/graficon-stuff-zGTvZ5TaCc4-unsplash_ek9gep_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680899/maulana-ahmad-7jK1X2yk-kc-unsplash_lb5ytx_8e0d99.jpg",
-        "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778680895/open-clip-art-kB2sfouB07A-unsplash_fsulik_8e0d99.jpg"
-        ];
 
     const capacities = [
         20, 25, 30, 35, 40, 45, 50
