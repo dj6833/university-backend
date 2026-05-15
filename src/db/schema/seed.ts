@@ -1,13 +1,12 @@
 import "dotenv/config";
 import {neon} from "@neondatabase/serverless";
-import {seed, reset, lastNames} from "drizzle-seed";
+import {reset} from "drizzle-seed";
 import * as schema from "../schema/index.js";
 import {account, classes, departments, enrollments, subjects, user} from "../schema/index.js";
-import {faker} from '@faker-js/faker';
 import {generateSeedUsers} from "./seed-helper.js";
 import {getRandomInclusive} from "../../lib/utils.js";
 
-//region seeding-constants
+//region seeding-constants > >
 const usersToCreate:number = 200
 const adminsToCreate:number = 3
 const teacherPercentageToCreate:number = 0.05
@@ -43,7 +42,6 @@ if (!retainDBData) {
 
 import {seedData} from "./seed-data.js";
 import {drizzle} from "drizzle-orm/neon-http";
-import {integer} from "drizzle-orm/pg-core";
 
 const generateInviteCode = (name: string) => {
     const prefix = name.substring(0, 3).toUpperCase().replace(" ", "");
@@ -135,7 +133,6 @@ async function main() {
 
     // 2. Departments, Subjects, and Classes
     const allClassIds: number[] = [];
-    //const
 
     for (const dept of seedData.slice(0,departmentsToCreate)) {
         const deptCode = dept.name.substring(0, 3).toUpperCase();
@@ -173,12 +170,7 @@ async function main() {
             const noOfClassesToCreate = getRandomInclusive(minClassesPerSubjectToCreate,maxClassesPerDepartmentToCreate);
 
             const classesToInsert = subjectData.classes.slice(0,noOfClassesToCreate).map((c) => {
-                //const randomClassSeedImage = classSeedImages[Math.floor(Math.random() * classSeedImages.length)];
                 const imageCloudUrl = classSeedImages[Math.floor(Math.random() * classSeedImages.length)] || 'null';
-                //const imageCloudUrl = randomClassSeedImage?.imageCloudUrl || 'null';
-                //const imageCloudID = randomClassSeedImage?.imageCloudID || 'null';
-                //const imageCloudUrl2 = 'https://res.cloudinary.com/dnfko6vxu/image/upload/v1778679214/salman-ahmad-cl-jq9cvq6a-unsplash_mkrlos_054936_1000x_6cd31b.jpg';
-
                 const imageCloudIdWithExt = imageCloudUrl.substring(imageCloudUrl.lastIndexOf('/') + 1) || 'null';
                 const imageCloudID = imageCloudIdWithExt.substring(0, imageCloudIdWithExt.lastIndexOf('.')) || 'null';
 
@@ -203,7 +195,7 @@ async function main() {
         }
     }
 
-    // 3. Enrollments
+    // 3. Enrollments - for each student record, shuffle available classes and assign n to the student using slice()
     const enrollmentEntries = studentIds.flatMap((studentId) => {
         const randomClasses = [...allClassIds]
             .sort(() => 0.5 - Math.random())
@@ -216,7 +208,7 @@ async function main() {
         await db.insert(enrollments).values(enrollmentEntries);
     }
 
-    console.log("✨ Seed complete! Users, Departments, Subjects, Classes, and Enrollments inserted.");
+    console.log("Seed complete!");
 
 }
 

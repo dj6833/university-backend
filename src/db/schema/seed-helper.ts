@@ -66,26 +66,20 @@ function randomiseEmailDomain(email:string) {
 const createRandomUser = (): newUser => {
     const firstName = faker.person.firstName();
     const lastName = faker.person.lastName();
-    const random = Math.random();
 
     return {
         id: faker.string.uuid(),
         name: faker.person.fullName({ firstName, lastName }),
-        //email: faker.internet.email({ firstName, lastName, provider:["test.com","rrr.com"] }),
         email: randomiseEmailDomain(faker.internet.email({ firstName, lastName, })),
         emailVerified: true,
         role: userRolesPool.pop(),
-        //image: "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778277823/uploads/pa0ccyarnsf9qnih0jaa.jpg",
         image: userSeedImages[Math.floor(Math.random() * userSeedImages.length)],
         imageCldPubId: "uploads/placeholder_value"
     };
 };
 
 export const generateSeedUsers = (usersToCreate: number, adminsToCreate: number, teacherPercentageToCreate: number): newUser[] => {
-    //const adminsToCreate:number = 3
-    //const teacherPercentageToCreate:number = 0.15
     const nonAdminUsersToCreate:number = usersToCreate-adminsToCreate
-
     userRolesPool = [
         ...Array(adminsToCreate).fill("admin"),
         ...Array(Math.floor(nonAdminUsersToCreate * teacherPercentageToCreate)).fill("teacher"),
