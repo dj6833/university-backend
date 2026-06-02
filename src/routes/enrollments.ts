@@ -3,6 +3,9 @@ import { and, eq, getTableColumns } from "drizzle-orm";
 
 import { db } from "../db/index.js";
 import { classes, departments, enrollments, subjects, user } from "../db/schema/index.js";
+import {string} from "better-auth";
+
+if (!process.env.ANALYSIS_SERVICE_URL) throw new Error("ANALYSIS_SERVICE_URL is not set in .env file");
 
 const router = express.Router();
 
@@ -144,6 +147,38 @@ router.post("/join", async (req, res) => {
   } catch (error) {
     console.error("POST /enrollments/join error:", error);
     res.status(500).json({ error: "Failed to join class" });
+  }
+});
+
+router.get('/test-python-recommend', async (req, res) => {
+  try {
+    // todo: replace temporary user & pwd approach with JWT or similar if not using a private network across hosting platforms
+    // 1. Create a dummy student ID to test the pipeline
+    const testStudentId = "student_999";
+
+    // 2. Make an asynchronous call to your FastAPI server
+    const pythonResponse = await fetch(`${process.env.ANALYSIS_SERVICE_URL}recommendations`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({  api_username: process.env.RECOMMEND_ENROLLMENTS_API_USERNAME!,
+                              api_password: process.env.RECOMMEND_ENROLLMENTS_API_PASSWORD!,
+                              student_id: testStudentId }),
+    });
+
+    // 3. Parse the JSON payload sent back by Python
+    const data = await pythonResponse.json();
+
+    // 4. Return it to your browser to confirm the loop is closed
+    return res.json({
+      express_status: "Successfully reached Python!",
+      data_received_from_python: data
+    });
+
+  } catch (error) {
+    console.error("Express failed to connect to FastAPI:", error);
+    return res.status(500).json({ error: "Python service is completely offline" });
   }
 });
 
