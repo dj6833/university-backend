@@ -154,7 +154,7 @@ router.get('/test-python-recommend', async (req, res) => {
   try {
     // todo: replace temporary user & pwd approach with JWT or similar if not using a private network across hosting platforms
     // 1. Create a dummy student ID to test the pipeline
-    const testStudentId = "student_999";
+    const testStudentId = "02f0669b-a01c-454f-8df4-be7741a70491";
 
     // 2. Make an asynchronous call to your FastAPI server
     const pythonResponse = await fetch(`${process.env.ANALYSIS_SERVICE_URL}recommendations`, {
@@ -178,7 +178,7 @@ router.get('/test-python-recommend', async (req, res) => {
 
   } catch (error) {
     console.error("Express failed to connect to FastAPI:", error);
-    return res.status(500).json({ error: "Python service is completely offline" });
+    return res.status(500).json({ error: "Python service is currently offline" });
   }
 });
 
