@@ -15,6 +15,15 @@ const router = express.Router();
 // Get all departments with optional search and pagination
 router.get("/", async (req, res) => {
   try {
+
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorised: Please log in first" });
+    }
+
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden: Only admins can manage departments" });
+    }
+
     const { search, page = 1, limit = 10 } = req.query;
 
     const currentPage = Math.max(1, +page);

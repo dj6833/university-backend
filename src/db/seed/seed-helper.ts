@@ -23,7 +23,7 @@ const createRandomUser = (): newUser => {
     return {
         id: faker.string.uuid(),
         name: faker.person.fullName({ firstName, lastName }),
-        email: randomiseEmailDomain(faker.internet.email({ firstName, lastName, })),
+        email: randomiseEmailDomain(faker.internet.email({ firstName, lastName, })).toLowerCase(), //lowercase required to match UI path which lowercases emails during login; possibly used as salt as impossible to later determine pwd hash without this!
         emailVerified: true,
         role: userRolesPool.pop(),
         image: userSeedImages[Math.floor(Math.random() * userSeedImages.length)],

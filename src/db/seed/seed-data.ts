@@ -10,7 +10,7 @@ export const fakeEmailDomains = [
     "abcmail.com",
     "example.com",
     "example.net",
-    "@example.org"
+    "example.org"
 ];
 
 export const userSeedImages = [
