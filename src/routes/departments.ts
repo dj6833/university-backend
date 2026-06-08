@@ -20,9 +20,18 @@ router.get("/", async (req, res) => {
       return res.status(401).json({ error: "Unauthorised: Please log in first" });
     }
 
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Forbidden: Only admins can manage departments" });
+    if (!['admin', 'teacher'].includes(<string>req.user.role)){
+      //return res.status(403).json({ error: "Forbidden: you do not have permission to view this entity" });
+      return res.status(403).json({
+        error: "Forbidden",
+        //message: "Access Denied: Departments are not available for your user profile."
+        message: "Forbidden: you do not have permission to view this entity."
+      });
     }
+
+    // if (req.user.role !== "admin") {
+    //   return res.status(403).json({ error: "Forbidden: Only admins can manage departments" });
+    // }
 
     const { search, page = 1, limit = 10 } = req.query;
 

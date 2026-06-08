@@ -18,7 +18,6 @@ const securityMiddleware = async (
     next: NextFunction
 ) => {
     try {
-        console.log("here1")
         // BETTER AUTH SESSION CHECK (Runs globally across environments)
         const session = await auth.api.getSession({
             headers: fromNodeHeaders(req.headers),
