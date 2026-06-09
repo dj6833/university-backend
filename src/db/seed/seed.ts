@@ -1,6 +1,6 @@
 /*
 run using cmd:
- npm run db:seed
+ npm run build && node dist/db/seed/seed.js
 */
 
 import "dotenv/config";
@@ -63,11 +63,21 @@ async function main() {
     const usersToInsert = generateSeedUsers(usersToCreate,adminsToCreate,teacherPercentageToCreate);
 
     /*
-    add test user:
-    gary.benson987@outluke.com (pwd: test1234)
+    add test users (pwd stored separately off github as site now in Prod)
      */
-    const additionalUser = {
-        id: "517c733b-7c19-478d-8011-b8668ccd827d",
+
+    var additionalUser = {
+        id: "PKjBSRLYnEoe3Y5F6gHNEhn0rJEfQLGP",
+        name: "Laura Wilcox",
+        email: "laura_wilcox_73@fakeserver.io",
+        emailVerified: false,
+        image: "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778674830/afrian-e-prasetyo-t3ityxHmCNY-unsplash_p49ltf_48x48.jpg",
+        role: "admin" as UserRoles,
+        imageCldPubId: "uploads/placeholder_value"
+    };
+    usersToInsert.push(additionalUser);
+    additionalUser = {
+        id: "5CuJqyne90XsAkqZHT9iqz2g2utF7vQq",
         name: "Gary Benson",
         email: "gary.benson987@outluke.com",
         emailVerified: false,
@@ -75,17 +85,47 @@ async function main() {
         role: "teacher" as UserRoles,
         imageCldPubId: "uploads/placeholder_value"
     };
-
+    usersToInsert.push(additionalUser);
+    additionalUser = {
+        id: "EXslqUsnjguOBURhn61fheG94EZj46UD",
+        name: "Edward Haley",
+        email: "edward.haley@dummybox.net",
+        emailVerified: false,
+        image: "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778674873/vedant-bathia-T4F2tMFFzZc-unsplash_i5pgwo_48x48.jpg",
+        role: "teacher" as UserRoles,
+        imageCldPubId: "uploads/placeholder_value"
+    };
+    usersToInsert.push(additionalUser);
+    additionalUser = {
+        id: "NodSIAbjXrk83GxsQ2WdEaqlPkoL42gI",
+        name: "Bob Dean",
+        email: "bob.dean115@abcmail.com",
+        emailVerified: false,
+        image: "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778674932/nicolas-MUYQsvtlw98-unsplash_lkmeka_48x48.jpg",
+        role: "student" as UserRoles,
+        imageCldPubId: "uploads/placeholder_value"
+    };
+    usersToInsert.push(additionalUser);
+    additionalUser = {
+        id: "CHvF5Z2AQhg7HNgguKbW8RD5uQT4wKQS",
+        name: "Joanna Oconnell",
+        email: "joannaoconnell3975@testmail.dev",
+        emailVerified: false,
+        image: "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778674837/gilang-yuda-alyahya-66DFSxybtQ8-unsplash_c7rskn_48x48.jpg",
+        role: "student" as UserRoles,
+        imageCldPubId: "uploads/placeholder_value"
+    };
     usersToInsert.push(additionalUser);
 
     const insertedUsers = await db.insert(user).values(usersToInsert).returning();
     /*
-    add an [account] record so we can login as our test user:
+    add [account] records so we can login as our test users:
      */
+    //Laura_wilcox_73@fakeserver.io
     await db.insert(account).values({
-        id: "RdPIrXuGQYrgHTaHFXRO900ge9W0jaLw",
-        userId: "517c733b-7c19-478d-8011-b8668ccd827d",
-        accountId: "517c733b-7c19-478d-8011-b8668ccd827d",
+        id: "Ol32C61ZBb7oiYkWIvKPIDTerTbdCHf3",
+        userId: "PKjBSRLYnEoe3Y5F6gHNEhn0rJEfQLGP",
+        accountId: "PKjBSRLYnEoe3Y5F6gHNEhn0rJEfQLGP",
         providerId: "credential",
         accessToken: null,
         refreshToken: null,
@@ -93,7 +133,63 @@ async function main() {
         accessTokenExpiresAt: null,
         refreshTokenExpiresAt: null,
         scope: null,
-        password: "bed5c1b1398602091e3a4113a810fa44:1c9a1f9370d2281646297da05b5701fc5834cebdf709b7fdc59790ee5cbf27249b950b6831631f2d05c6834914d93278440350a07bc78c468612d93cedc0c30e"
+        password: "91db292961fc4bad0c40f8ea87a35635:0526c007ba4eb0e15a7db11bab9a3ad2b4bda20f9c9422ec1a37035f6f733f597085396ff62af22211512df1d4411f073f8d44eaa1e9fed26338f005050108e8"
+    })
+    //gary.benson987@outluke.com
+    await db.insert(account).values({
+        id: "6llYyzkAYOUvPTMQ1S8J48bNcQauujxz",
+        userId: "5CuJqyne90XsAkqZHT9iqz2g2utF7vQq",
+        accountId: "5CuJqyne90XsAkqZHT9iqz2g2utF7vQq",
+        providerId: "credential",
+        accessToken: null,
+        refreshToken: null,
+        idToken: null,
+        accessTokenExpiresAt: null,
+        refreshTokenExpiresAt: null,
+        scope: null,
+        password: "2c6d6a62fe0bb1e4095cf37c610dd111:553e910f9461cc9a20da816bad79eb4cb38916de2d3e397e1c6cddd29fa367b3100940fcad4059d2fc21a594439b36d8fdaa2763e5e42dba9bd85e592285031d"
+    })
+    //Edward.Haley@dummybox.net
+    await db.insert(account).values({
+        id: "Lla92bSMHVmPos5YBR5CovB8rgVYNx5u",
+        userId: "EXslqUsnjguOBURhn61fheG94EZj46UD",
+        accountId: "EXslqUsnjguOBURhn61fheG94EZj46UD",
+        providerId: "credential",
+        accessToken: null,
+        refreshToken: null,
+        idToken: null,
+        accessTokenExpiresAt: null,
+        refreshTokenExpiresAt: null,
+        scope: null,
+        password: "8a8024ac88f071b12bbbf2cec190c2fb:5f492c92471d59f0a90ba4da65868cbf985c73d993670e7fbeecafb6e8061d78e6cb775dac58784dec5dbf67eaeb2da67939f03f2dee79a90090c8278ff0dc6c"
+    })
+    //Bob.Dean115@abcmail.com
+    await db.insert(account).values({
+        id: "UEXGza56U8WolcOSCWoKWwHuBjcUrw9J",
+        userId: "NodSIAbjXrk83GxsQ2WdEaqlPkoL42gI",
+        accountId: "NodSIAbjXrk83GxsQ2WdEaqlPkoL42gI",
+        providerId: "credential",
+        accessToken: null,
+        refreshToken: null,
+        idToken: null,
+        accessTokenExpiresAt: null,
+        refreshTokenExpiresAt: null,
+        scope: null,
+        password: "8a10ac6c6814676fa0bb84048890168d:5f9518787bba30c12cd4fd002bf848001928e04779db544ca2281be8c5acb45140c6dda2bd2f72d437182a412a9c521458f120448ded5b0bbbc172f3cec0a6f9"
+    })
+    // joannaoconnell3975@testmail.dev
+    await db.insert(account).values({
+        id: "LrWPBY4mMW8J1qGSYsTK0uxDgdTBMlBc",
+        userId: "CHvF5Z2AQhg7HNgguKbW8RD5uQT4wKQS",
+        accountId: "CHvF5Z2AQhg7HNgguKbW8RD5uQT4wKQS",
+        providerId: "credential",
+        accessToken: null,
+        refreshToken: null,
+        idToken: null,
+        accessTokenExpiresAt: null,
+        refreshTokenExpiresAt: null,
+        scope: null,
+        password: "f06efb853e14bdbdf437a0509e365e35:629fee68f6baeee933c15020639ac6e163cc6bcd62d8ed598fe4308ddfa51532acbf51d334f2257130e80fa6be2768b7a8881a9f081e74c5aecf1c50e32e4ce6"
     })
 
     const teacherIds = insertedUsers.filter((u) => u.role === "teacher").map((u) => u.id);

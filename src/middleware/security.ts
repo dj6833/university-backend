@@ -1,22 +1,47 @@
 import { slidingWindow } from "@arcjet/node";
 import type { ArcjetNodeRequest } from "@arcjet/node";
 import type { NextFunction, Request, Response } from "express";
+import { fromNodeHeaders } from "better-auth/node"; // ◄ Added this import
 
 import aj from "../config/arcjet.js";
+import { auth } from "../lib/auth.js"; // ◄ Import your actual initialized Better Auth server instance
+
+// Extend Express Request types locally if TypeScript complains about req.user or req.session
+interface AuthenticatedRequest extends Request {
+    user?: any;
+    session?: any;
+}
 
 const securityMiddleware = async (
-    req: Request,
+    req: AuthenticatedRequest, // ◄ Using our extended type
     res: Response,
     next: NextFunction
 ) => {
-    // If NODE_ENV is TEST, skip security middleware (DJ, added DEV to this)
-    if (['test', 'development'].includes(<string>process.env.NODE_ENV)){
-    //if (process.env.NODE_ENV === "test") {
-        return next();
-    }
-
     try {
-        const role: RateLimitRole = req.user?.role ?? "guest";
+        // BETTER AUTH SESSION CHECK (Runs globally across environments)
+        const session = await auth.api.getSession({
+            headers: fromNodeHeaders(req.headers),
+        });
+
+        // Attach the user context if found, otherwise they stay guest/undefined
+        if (session && session.user) {
+            req.user = session.user;
+            req.session = session.session;
+        }
+
+        if (!req.user) {
+            return res.status(401).json({
+                error: "Unauthorised: No active user session found, please login."
+            });
+        }
+
+        // Environment bypass rule for local development to avoid arcJet checks
+        if (['test', 'development'].includes(<string>process.env.NODE_ENV)){
+           return next();
+        }
+
+        // ARCJET SECURITY & RATE LIMITING
+        const role = req.user?.role ?? "guest";
 
         let limit: number;
         let message: string;
@@ -80,7 +105,7 @@ const securityMiddleware = async (
 
         next();
     } catch (error) {
-        console.error("Arcjet middleware error:", error);
+        console.error("Arcjet/Auth middleware error:", error);
         res.status(500).json({
             error: "Internal Server Error",
             message: "Something went wrong with the security middleware.",
