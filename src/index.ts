@@ -29,10 +29,12 @@ app.use(
   })
 );
 
+//expose api/auth routes first, before we add session checks
 app.all("/api/auth/*splat", toNodeHandler(auth));
 
 app.use(express.json());
 
+//now add security layer to handle global session, rate limiting checks etc
 app.use(securityMiddleware);
 
 app.use("/api/subjects", subjectsRouter);

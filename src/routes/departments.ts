@@ -16,22 +16,15 @@ const router = express.Router();
 router.get("/", async (req, res) => {
   try {
 
-    if (!req.user) {
-      return res.status(401).json({ error: "Unauthorised: Please log in first" });
-    }
 
-    if (!['admin', 'teacher'].includes(<string>req.user.role)){
-      //return res.status(403).json({ error: "Forbidden: you do not have permission to view this entity" });
+    const userRole = (req.user?.role as string) || "";
+
+    if (!['admin', 'teacher'].includes(userRole)){
       return res.status(403).json({
         error: "Forbidden",
-        //message: "Access Denied: Departments are not available for your user profile."
-        message: "Forbidden: you do not have permission to view this entity."
+        message: "Access Denied: Departments are not available for your user profile."
       });
     }
-
-    // if (req.user.role !== "admin") {
-    //   return res.status(403).json({ error: "Forbidden: Only admins can manage departments" });
-    // }
 
     const { search, page = 1, limit = 10 } = req.query;
 

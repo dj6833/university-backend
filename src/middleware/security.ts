@@ -29,7 +29,13 @@ const securityMiddleware = async (
             req.session = session.session;
         }
 
-        // Environment bypass rule for local development
+        if (!req.user) {
+            return res.status(401).json({
+                error: "Unauthorised: No active user session found, please login."
+            });
+        }
+
+        // Environment bypass rule for local development to avoid arcJet checks
         if (['test', 'development'].includes(<string>process.env.NODE_ENV)){
            return next();
         }
