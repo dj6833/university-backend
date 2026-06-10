@@ -153,10 +153,10 @@ router.post("/join", async (req, res) => {
 router.get('/test-python-recommend', async (req, res) => {
   try {
     // todo: replace temporary user & pwd approach with JWT or similar if not using a private network across hosting platforms
-    // 1. Create a dummy student ID to test the pipeline
-    const testStudentId = "02f0669b-a01c-454f-8df4-be7741a70491";
+    // Using a student ID from seed data to test the pipeline
+    const testStudentId = "b996a70a-a020-41f3-b787-b34639a587d7"; //"02f0669b-a01c-454f-8df4-be7741a70491";
 
-    // 2. Make an asynchronous call to your FastAPI server
+    // Make an asynchronous call to your FastAPI server
     const pythonResponse = await fetch(`${process.env.ANALYSIS_SERVICE_URL}recommendations`, {
       method: 'POST',
       headers: {
