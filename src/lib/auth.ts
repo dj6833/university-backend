@@ -9,10 +9,11 @@ export const auth = betterAuth({
     trustedOrigins: [process.env.FRONTEND_URL!],
     advanced: {
         // Force cookies to be shareable cross-domain (required for Prod where frontend & backend are different domains)
+        // Below still ensures this cookie can only be exchanged with backend
         defaultCookieAttributes: {
             sameSite: "none", // Mandatory for cross-origin setups
             secure: true,     // Required by browsers when sameSite is "none"
-            httpOnly: true,
+            httpOnly: true, // Protects cookies from being read non-http such as js
         },
     },
     database: drizzleAdapter(db, {
