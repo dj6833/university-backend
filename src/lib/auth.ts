@@ -7,6 +7,14 @@ import * as schema from "../db/schema/auth.js";
 export const auth = betterAuth({
     secret: process.env.BetterAuthSecret!,
     trustedOrigins: [process.env.FRONTEND_URL!],
+    advanced: {
+        // Force cookies to be shareable cross-domain (required for Prod where frontend & backend are different domains)
+        defaultCookieAttributes: {
+            sameSite: "none", // Mandatory for cross-origin setups
+            secure: true,     // Required by browsers when sameSite is "none"
+            httpOnly: true,
+        },
+    },
     database: drizzleAdapter(db, {
         provider: "pg", // or "mysql", "sqlite"
         schema,
