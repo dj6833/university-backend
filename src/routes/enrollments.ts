@@ -1,13 +1,93 @@
 import express from "express";
-import {and, desc, eq, getTableColumns, inArray, SQL} from "drizzle-orm";
+import {and, desc, eq, getTableColumns, ilike, inArray, or, sql, SQL} from "drizzle-orm";
 
 import { db } from "../db/index.js";
 import { classes, departments, enrollments, subjects, user } from "../db/schema/index.js";
 import {string} from "better-auth";
+import users from "./users";
 
 if (!process.env.ANALYSIS_SERVICE_URL) throw new Error("ANALYSIS_SERVICE_URL is not set in .env file");
 
 const router = express.Router();
+
+router.get("/", async (req, res) => {
+    try {
+
+        //const userRole = (req.user?.role as string) || "";
+        //const userId = req.user?.id ?? 0;
+        const userId = req.user?.id
+
+        if (!userId)
+        {
+            throw new Error("could not establish userID");
+        }
+
+        const { search, page = 1, limit = 10 } = req.query;
+
+        const currentPage = Math.max(1, +page);
+        const limitPerPage = Math.max(1, +limit);
+        const offset = (currentPage - 1) * limitPerPage;
+
+        const filterConditions = [];
+
+        filterConditions.push(eq(enrollments.studentId, userId))
+
+        if (search) {
+            filterConditions.push(
+                or(
+                    ilike(classes.name, `%${search}%`),
+                    ilike(subjects.name, `%${search}%`)
+                )
+            );
+        }
+
+        const whereClause =
+            filterConditions.length > 0 ? and(...filterConditions) : undefined;
+
+         const countResult = await db
+             .select({ count: sql<number>`count(*)` })
+             .from(enrollments)
+        //     .leftJoin(user, eq(enrollments.studentId, user.id))
+        //     .leftJoin(classes, eq(enrollments.classId, classes.id))
+        //     .leftJoin(subjects, eq(departments.id, classes.subjectId))
+             .where(whereClause);
+        //
+        const totalCount = countResult[0]?.count ?? 0;
+
+        const enrolmentsList = await db
+        //const objSQL = db
+            .select({
+                ...getTableColumns(enrollments),
+                ...getTableColumns(classes),
+                ...getTableColumns(subjects),
+            })
+            .from(enrollments)
+            //.leftJoin(user, eq(enrollments.studentId, user.id))
+            .leftJoin(classes, eq(enrollments.classId, classes.id))
+            .leftJoin(subjects, eq(classes.subjectId, subjects.id))
+            .where(whereClause)
+            //.groupBy(departments.id)
+            .orderBy(desc(enrollments.updatedAt))
+            .limit(limitPerPage)
+            .offset(offset);
+            //.toSQL();
+
+        //res.status(200).json({data: objSQL});
+
+        res.status(200).json({
+            data: enrolmentsList,
+            pagination: {
+                page: currentPage,
+                limit: limitPerPage,
+                total: totalCount,
+                totalPages: Math.ceil(totalCount / limitPerPage),
+            },
+        });
+    } catch (error) {
+        console.error("GET /enrolments error:", error);
+        res.status(500).json({ error: "Failed to fetch enrolments" });
+    }
+});
 
 const getEnrollmentDetails = async (enrollmentId: number) => {
   const [enrollment] = await db
@@ -152,129 +232,51 @@ router.post("/join", async (req, res) => {
 
 router.get("/recommendations", async (req, res) => {
   try {
-    // todo: replace temporary user & pwd approach with JWT or similar if not using a private network across hosting platforms
-    // Using a student ID from seed data to test the pipeline
-    //const testStudentId = "b996a70a-a020-41f3-b787-b34639a587d7"; //"02f0669b-a01c-454f-8df4-be7741a70491";
-
-    //const userId = (req.user?.role as string) || "";
-    // const userId = (req.session?.userId as string) || "";
-    //
-    // if (!['admin', 'teacher'].includes(userRole)){
-    //   return res.status(403).json({
-    //     error: "Forbidden",
-    //     message: "Access Denied: Departments are not available for your user profile."
-    //   });
-    // }
 
     const userId = (req.session?.userId as string) || "";
 
+    const maxRecordsToReturn  = 10;
+
     if (!userId || userId.length === 0) return res.status(404).json({ error: "User ID not found" });
 
-    interface PythonApiResponse {
-      data: {
-        status: string;
-        processed_student: string;
-        recommended_classes: {
-          classId: string;
-          match_strength: string;
-        }[];
-      };
+    interface recommendationsAPIModel {
+      status: string;
+      processed_student: string;
+      recommended_classes: {
+        classId: string;
+        match_strength: string;
+      }[];
     }
 
-    // Make an asynchronous call to your FastAPI server
-    const pythonResponse = await fetch(`${process.env.ANALYSIS_SERVICE_URL}recommendations`, {
+    const recommendationsResponseRaw = await fetch(`${process.env.ANALYSIS_SERVICE_URL}recommendations`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({  api_username: process.env.RECOMMEND_ENROLLMENTS_API_USERNAME!,
                               api_password: process.env.RECOMMEND_ENROLLMENTS_API_PASSWORD!,
-                              student_id: userId }),
+                              student_id: userId,
+                              max_records: maxRecordsToReturn}),
     });
 
-    // Parse the JSON payload sent back by Python
-    const pyRespData = await pythonResponse.json(); // as PythonApiResponse;
+    const recommendationsResponseRawJson = await recommendationsResponseRaw.json() as recommendationsAPIModel;
+    const recommendationsResponse = recommendationsResponseRawJson as recommendationsAPIModel;
+    const recommendedClasses = recommendationsResponse.recommended_classes;
+    const recommendedClassIDs = recommendedClasses.map(item => Number(item.classId))
 
-    // 1. Map API string IDs to numbers and build the lookup Map
-    const recommendedClasses = pyRespData; //.data.recommended_classes;
-    // const recommendedClassIDs = recommendedClasses.map(item => Number(item.classId)); // Cast to number for Postgres ID matching
-    //
-    // const strengthMap = new Map(
-    //     recommendedClasses.map(item => [Number(item.classId), item.match_strength])
-    // );
+    if (recommendedClassIDs.length < 1) {
+      return res.status(204).json({ data: null });
+    }
 
-    // if (recommendedClassIDs.length < 1) {
-    //   return res.status(204).json({ data: null });
-    // }
+    const recommendedClassesStrengthMap = new Map(
+        recommendedClasses.map(item => [Number(item.classId), Number(item.match_strength)])
+    );
 
     const filterConditions = [];
 
-    //filterConditions.push(inArray(classes.id,recommendedClassIDs))
+    filterConditions.push(inArray(classes.id, recommendedClassIDs));
 
-    // If there are conditions, pass the array directly to and(); otherwise pass undefined
-    //const drizzleWhereClause = filterConditions.length > 0
-    //    ? and(filterConditions[0], ...filterConditions.slice(1))
-    //    : undefined;
-
-    //const filterConditions : SQL[] = [];
-
-    // if (search) {
-    //   filterConditions.push(
-    //       or(
-    //           ilike(classes.name, `%${search}%`),
-    //           ilike(classes.inviteCode, `%${search}%`)
-    //       )
-    //   );
-    // }
-
-    // if (subject) {
-    //   filterConditions.push(ilike(subjects.name, `%${subject}%`));
-    // }
-
-    // if (teacher) {
-    //   filterConditions.push(ilike(user.name, `%${teacher}%`));
-    // }
-
-    //filterConditions.push(inArray(classes.id, recommendedClassIDs));
-    filterConditions.push(inArray(classes.id, [18904]));
-
-    const whereClause = filterConditions.length > 0
-        ? and(...filterConditions)
-        : undefined;
-
-
-
-    // const classesList = await db
-    //     .select({
-    //       ...getTableColumns(classes),
-    //       subject: {
-    //         ...getTableColumns(subjects),
-    //       },
-    //       teacher: {
-    //         ...getTableColumns(user),
-    //       },
-    //     })
-    //     .from(classes)
-    //     .leftJoin(subjects, eq(classes.subjectId, subjects.id))
-    //     .leftJoin(user, eq(classes.teacherId, user.id))
-    //     .where(whereClause)
-    //     .orderBy(desc(classes.createdAt))
-    //     // .limit(limitPerPage)
-    //     // .offset(offset);
-
-    // const classesList = await db
-    //     .select({
-    //       // 1. Pass the tables directly. Drizzle automatically flattens/groups them.
-    //       class: classes,
-    //       subject: subjects,
-    //       teacher: user,
-    //     })
-    //     .from(classes)
-    //     .leftJoin(subjects, eq(classes.subjectId, subjects.id))
-    //     .leftJoin(user, eq(classes.teacherId, user.id))
-    //     //.where(whereClause)
-    //     .orderBy(desc(classes.createdAt))
-    //     .limit(5)
+    const whereClause = filterConditions.length > 0 ? and(...filterConditions) : undefined;
 
     const classesList = await db
         .select({
@@ -290,26 +292,19 @@ router.get("/recommendations", async (req, res) => {
         .leftJoin(subjects, eq(classes.subjectId, subjects.id))
         .leftJoin(user, eq(classes.teacherId, user.id))
         .where(whereClause)
-        .orderBy(desc(classes.createdAt))
-        .limit(1)
+        .orderBy(desc(classes.createdAt)) //strengthMap will be used to sort later - this is a default backup if any issues
 
-    // const classesListWithStrength = classesList
-    //     .map(row => ({
-    //       ...row,
-    //       match_strength: strengthMap.get(row.class.id) ?? 0 // Default to 0 if not found
-    //     }))
-        //.sort((a, b) => b.match_strength - a.match_strength);
+    const classesListWithStrength = classesList
+        .map(row => ({
+          ...row,
+          match_strength: recommendedClassesStrengthMap.get(row.id) ?? 0 // shouldn't happen: default to 0 match_strength if not found
+        }))
+        .sort((a, b) => b.match_strength - a.match_strength);
 
-    // Return it to your browser to confirm the loop is closed
-    //res.status(201).json({ data: classesListWithStrength });
-    res.status(201).json({ data: classesList });
+    res.status(201).json({ data: classesListWithStrength });
 
-    // return res.json({
-    //   express_status: "Successfully reached Python!",
-    //   data_received_from_python: data
-    // });
-
-  } catch (error) {
+  }
+  catch (error) {
     console.error("Express failed to connect to FastAPI:", error);
     return res.status(500).json({ error: "Error calling Python service" });
   }
