@@ -37,7 +37,7 @@ app.all("/api/auth/*splat", toNodeHandler(auth));
 
 app.use(express.json());
 
-//now add security layer to handle global session, rate limiting checks etc
+//now add security layer to handle global session checking, arcjet logging/filtering/rate limiting checks etc
 app.use(securityMiddleware);
 
 app.use("/api/subjects", subjectsRouter);
