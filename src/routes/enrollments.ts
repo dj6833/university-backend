@@ -243,6 +243,54 @@ router.post("/join", async (req, res) => {
   }
 });
 
+// Leave class
+router.delete("/:id", async (req, res) => {
+    try {
+
+        const userId = (req.session?.userId as string) || "";
+
+        if (!userId || userId.length === 0) return res.status(404).json({ error: "User ID not found" });
+
+        const enrolmentId = Number(req.params.id);
+
+        if (!Number.isFinite(enrolmentId)) {
+            return res.status(400).json({ error: "Invalid enrolment id" });
+        }
+
+        const [enrolment] = await db
+            .select()
+            .from(enrollments)
+            .where(
+                and(
+                    eq(enrollments.studentId, userId),
+                    eq(enrollments.id, enrolmentId)
+                )
+            );
+
+        if (!enrolment) {
+            return res.status(404).json({ error: "Enrolment record not found" });
+        }
+
+        const [deletedEnrolment] = await db
+            .delete(enrollments)
+            .where(and
+                (
+                eq(enrollments.studentId, userId),
+                eq(enrollments.id, enrolmentId)
+                )
+            )
+            .returning({ id: enrollments.id });
+
+        if (!deletedEnrolment) throw Error;
+
+        res.status(200).json({ data: deletedEnrolment });
+
+    } catch (error) {
+        console.error("DELETE /enrollments/:id error:", error);
+        res.status(500).json({ error: "Failed to delete enrolment record" });
+    }
+});
+
 router.get("/recommendations", async (req, res) => {
   try {
 
