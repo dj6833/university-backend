@@ -13,9 +13,7 @@ const router = express.Router();
 router.get("/", async (req, res) => {
     try {
 
-        //const userRole = (req.user?.role as string) || "";
-        //const userId = req.user?.id ?? 0;
-        const userId = req.user?.id
+        const userId = req.user?.id;
 
         if (!userId)
         {
@@ -34,9 +32,11 @@ router.get("/", async (req, res) => {
 
         if (search) {
             filterConditions.push(
-                or(
-                    ilike(classes.name, `%${search}%`),
-                    ilike(subjects.name, `%${search}%`)
+                and(
+                    or(
+                        ilike(classes.name, `%${search}%`),
+                        ilike(subjects.name, `%${search}%`)
+                    )
                 )
             );
         }
@@ -47,24 +47,37 @@ router.get("/", async (req, res) => {
          const countResult = await db
              .select({ count: sql<number>`count(*)` })
              .from(enrollments)
-        //     .leftJoin(user, eq(enrollments.studentId, user.id))
-        //     .leftJoin(classes, eq(enrollments.classId, classes.id))
-        //     .leftJoin(subjects, eq(departments.id, classes.subjectId))
+             .leftJoin(classes, eq(enrollments.classId, classes.id))
+             .leftJoin(subjects, eq(classes.subjectId, subjects.id))
+             .leftJoin(user, eq(classes.teacherId, user.id))
              .where(whereClause);
         //
         const totalCount = countResult[0]?.count ?? 0;
 
         const enrolmentsList = await db
         //const objSQL = db
+        //     .select({
+        //         ...getTableColumns(enrollments),
+        //         ...getTableColumns(classes),
+        //         ...getTableColumns(subjects),
+        //     })
             .select({
                 ...getTableColumns(enrollments),
-                ...getTableColumns(classes),
-                ...getTableColumns(subjects),
+                classes: {
+                    ...getTableColumns(classes),
+                },
+                subjects: {
+                    ...getTableColumns(subjects),
+                },
+                teacher: {
+                    ...getTableColumns(user),
+                },
             })
             .from(enrollments)
             //.leftJoin(user, eq(enrollments.studentId, user.id))
             .leftJoin(classes, eq(enrollments.classId, classes.id))
             .leftJoin(subjects, eq(classes.subjectId, subjects.id))
+            .leftJoin(user, eq(classes.teacherId, user.id))
             .where(whereClause)
             //.groupBy(departments.id)
             .orderBy(desc(enrollments.updatedAt))
