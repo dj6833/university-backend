@@ -1,5 +1,5 @@
 import express from "express";
-import {and, desc, eq, getTableColumns, ilike, inArray, or, sql, SQL} from "drizzle-orm";
+import {and, desc, eq, getTableColumns, ilike, or, sql, SQL} from "drizzle-orm";
 
 import { db } from "../db/index.js";
 import { classes, departments, enrollments, subjects, user } from "../db/schema/index.js";
@@ -289,86 +289,6 @@ router.delete("/:id", async (req, res) => {
         console.error("DELETE /enrollments/:id error:", error);
         res.status(500).json({ error: "Failed to delete enrolment record" });
     }
-});
-
-router.get("/recommendations", async (req, res) => {
-  try {
-
-    const userId = (req.session?.userId as string) || "";
-
-    const maxRecordsToReturn  = 10;
-
-    if (!userId || userId.length === 0) return res.status(404).json({ error: "User ID not found" });
-
-    interface recommendationsAPIModel {
-      status: string;
-      processed_student: string;
-      recommended_classes: {
-        classId: string;
-        match_strength: string;
-      }[];
-    }
-
-    const recommendationsResponseRaw = await fetch(`${process.env.ANALYSIS_SERVICE_URL}recommendations`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({  api_username: process.env.RECOMMEND_ENROLLMENTS_API_USERNAME!,
-                              api_password: process.env.RECOMMEND_ENROLLMENTS_API_PASSWORD!,
-                              student_id: userId,
-                              max_records: maxRecordsToReturn}),
-    });
-
-    const recommendationsResponseRawJson = await recommendationsResponseRaw.json() as recommendationsAPIModel;
-    const recommendationsResponse = recommendationsResponseRawJson as recommendationsAPIModel;
-    const recommendedClasses = recommendationsResponse.recommended_classes;
-    const recommendedClassIDs = recommendedClasses.map(item => Number(item.classId))
-
-    if (recommendedClassIDs.length < 1) {
-      return res.status(204).json({ data: null });
-    }
-
-    const recommendedClassesStrengthMap = new Map(
-        recommendedClasses.map(item => [Number(item.classId), Number(item.match_strength)])
-    );
-
-    const filterConditions = [];
-
-    filterConditions.push(inArray(classes.id, recommendedClassIDs));
-
-    const whereClause = filterConditions.length > 0 ? and(...filterConditions) : undefined;
-
-    const classesList = await db
-        .select({
-          ...getTableColumns(classes),
-          subject: {
-            ...getTableColumns(subjects),
-          },
-          teacher: {
-            ...getTableColumns(user),
-          },
-        })
-        .from(classes)
-        .leftJoin(subjects, eq(classes.subjectId, subjects.id))
-        .leftJoin(user, eq(classes.teacherId, user.id))
-        .where(whereClause)
-        .orderBy(desc(classes.createdAt)) //strengthMap will be used to sort later - this is a default backup if any issues
-
-    const classesListWithStrength = classesList
-        .map(row => ({
-          ...row,
-          match_strength: recommendedClassesStrengthMap.get(row.id) ?? 0 // shouldn't happen: default to 0 match_strength if not found
-        }))
-        .sort((a, b) => b.match_strength - a.match_strength);
-
-    res.status(201).json({ data: classesListWithStrength });
-
-  }
-  catch (error) {
-    console.error("Express failed to connect to FastAPI:", error);
-    return res.status(500).json({ error: "Error calling Python service" });
-  }
 });
 
 export default router;
