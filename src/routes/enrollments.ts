@@ -1,13 +1,93 @@
 import express from "express";
-import { and, eq, getTableColumns } from "drizzle-orm";
+import {and, desc, eq, getTableColumns, ilike, or, sql} from "drizzle-orm";
 
 import { db } from "../db/index.js";
 import { classes, departments, enrollments, subjects, user } from "../db/schema/index.js";
-import {string} from "better-auth";
 
 if (!process.env.ANALYSIS_SERVICE_URL) throw new Error("ANALYSIS_SERVICE_URL is not set in .env file");
 
 const router = express.Router();
+
+router.get("/", async (req, res) => {
+    try {
+
+        const userId = req.user?.id;
+
+        if (!userId)
+        {
+            throw new Error("could not establish userID");
+        }
+
+        const { search, page = 1, limit = 10 } = req.query;
+
+        const currentPage = Math.max(1, +page);
+        const limitPerPage = Math.max(1, +limit);
+        const offset = (currentPage - 1) * limitPerPage;
+
+        const filterConditions = [];
+
+        filterConditions.push(eq(enrollments.studentId, userId))
+
+        if (search) {
+            filterConditions.push(
+                and(
+                    or(
+                        ilike(classes.name, `%${search}%`),
+                        ilike(subjects.name, `%${search}%`)
+                    )
+                )
+            );
+        }
+
+        const whereClause =
+            filterConditions.length > 0 ? and(...filterConditions) : undefined;
+
+         const countResult = await db
+             .select({ count: sql<number>`count(*)` })
+             .from(enrollments)
+             .leftJoin(classes, eq(enrollments.classId, classes.id))
+             .leftJoin(subjects, eq(classes.subjectId, subjects.id))
+             .leftJoin(user, eq(classes.teacherId, user.id))
+             .where(whereClause);
+        //
+        const totalCount = countResult[0]?.count ?? 0;
+
+        const enrolmentsList = await db
+            .select({
+                ...getTableColumns(enrollments),
+                classes: {
+                    ...getTableColumns(classes),
+                },
+                subjects: {
+                    ...getTableColumns(subjects),
+                },
+                teacher: {
+                    ...getTableColumns(user),
+                },
+            })
+            .from(enrollments)
+            .leftJoin(classes, eq(enrollments.classId, classes.id))
+            .leftJoin(subjects, eq(classes.subjectId, subjects.id))
+            .leftJoin(user, eq(classes.teacherId, user.id))
+            .where(whereClause)
+            .orderBy(desc(enrollments.updatedAt))
+            .limit(limitPerPage)
+            .offset(offset);
+
+        res.status(200).json({
+            data: enrolmentsList,
+            pagination: {
+                page: currentPage,
+                limit: limitPerPage,
+                total: totalCount,
+                totalPages: Math.ceil(totalCount / limitPerPage),
+            },
+        });
+    } catch (error) {
+        console.error("GET /enrolments error:", error);
+        res.status(500).json({ error: "Failed to fetch enrolments" });
+    }
+});
 
 const getEnrollmentDetails = async (enrollmentId: number) => {
   const [enrollment] = await db
@@ -150,36 +230,52 @@ router.post("/join", async (req, res) => {
   }
 });
 
-router.get('/test-python-recommend', async (req, res) => {
-  try {
-    // todo: replace temporary user & pwd approach with JWT or similar if not using a private network across hosting platforms
-    // Using a student ID from seed data to test the pipeline
-    const testStudentId = "b996a70a-a020-41f3-b787-b34639a587d7"; //"02f0669b-a01c-454f-8df4-be7741a70491";
+// Leave class
+router.delete("/:id", async (req, res) => {
+    try {
 
-    // Make an asynchronous call to your FastAPI server
-    const pythonResponse = await fetch(`${process.env.ANALYSIS_SERVICE_URL}recommendations`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({  api_username: process.env.RECOMMEND_ENROLLMENTS_API_USERNAME!,
-                              api_password: process.env.RECOMMEND_ENROLLMENTS_API_PASSWORD!,
-                              student_id: testStudentId }),
-    });
+        const userId = (req.session?.userId as string) || "";
 
-    // 3. Parse the JSON payload sent back by Python
-    const data = await pythonResponse.json();
+        if (!userId || userId.length === 0) return res.status(404).json({ error: "User ID not found" });
 
-    // 4. Return it to your browser to confirm the loop is closed
-    return res.json({
-      express_status: "Successfully reached Python!",
-      data_received_from_python: data
-    });
+        const enrolmentId = Number(req.params.id);
 
-  } catch (error) {
-    console.error("Express failed to connect to FastAPI:", error);
-    return res.status(500).json({ error: "Python service is currently offline" });
-  }
+        if (!Number.isFinite(enrolmentId)) {
+            return res.status(400).json({ error: "Invalid enrolment id" });
+        }
+
+        const [enrolment] = await db
+            .select()
+            .from(enrollments)
+            .where(
+                and(
+                    eq(enrollments.studentId, userId),
+                    eq(enrollments.id, enrolmentId)
+                )
+            );
+
+        if (!enrolment) {
+            return res.status(404).json({ error: "Enrolment record not found" });
+        }
+
+        const [deletedEnrolment] = await db
+            .delete(enrollments)
+            .where(and
+                (
+                eq(enrollments.studentId, userId),
+                eq(enrollments.id, enrolmentId)
+                )
+            )
+            .returning({ id: enrollments.id });
+
+        if (!deletedEnrolment) throw Error;
+
+        res.status(200).json({ data: deletedEnrolment });
+
+    } catch (error) {
+        console.error("DELETE /enrollments/:id error:", error);
+        res.status(500).json({ error: "Failed to delete enrolment record" });
+    }
 });
 
 export default router;

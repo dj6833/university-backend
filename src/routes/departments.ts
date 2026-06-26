@@ -9,13 +9,13 @@ import {
   subjects,
   user,
 } from "../db/schema/index.js";
+import {string} from "better-auth";
 
 const router = express.Router();
 
 // Get all departments with optional search and pagination
 router.get("/", async (req, res) => {
   try {
-
 
     const userRole = (req.user?.role as string) || "";
 
