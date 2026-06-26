@@ -1,10 +1,8 @@
 import express from "express";
-import {and, desc, eq, getTableColumns, ilike, or, sql, SQL} from "drizzle-orm";
+import {and, desc, eq, getTableColumns, ilike, or, sql} from "drizzle-orm";
 
 import { db } from "../db/index.js";
 import { classes, departments, enrollments, subjects, user } from "../db/schema/index.js";
-import {string} from "better-auth";
-import users from "./users";
 
 if (!process.env.ANALYSIS_SERVICE_URL) throw new Error("ANALYSIS_SERVICE_URL is not set in .env file");
 
@@ -55,12 +53,6 @@ router.get("/", async (req, res) => {
         const totalCount = countResult[0]?.count ?? 0;
 
         const enrolmentsList = await db
-        //const objSQL = db
-        //     .select({
-        //         ...getTableColumns(enrollments),
-        //         ...getTableColumns(classes),
-        //         ...getTableColumns(subjects),
-        //     })
             .select({
                 ...getTableColumns(enrollments),
                 classes: {
@@ -74,18 +66,13 @@ router.get("/", async (req, res) => {
                 },
             })
             .from(enrollments)
-            //.leftJoin(user, eq(enrollments.studentId, user.id))
             .leftJoin(classes, eq(enrollments.classId, classes.id))
             .leftJoin(subjects, eq(classes.subjectId, subjects.id))
             .leftJoin(user, eq(classes.teacherId, user.id))
             .where(whereClause)
-            //.groupBy(departments.id)
             .orderBy(desc(enrollments.updatedAt))
             .limit(limitPerPage)
             .offset(offset);
-            //.toSQL();
-
-        //res.status(200).json({data: objSQL});
 
         res.status(200).json({
             data: enrolmentsList,

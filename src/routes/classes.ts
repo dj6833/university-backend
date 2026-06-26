@@ -10,8 +10,6 @@ const router = express.Router();
 router.get("/recommendations", async (req, res) => {
     try {
 
-        console.log("h1");
-
         const userId = (req.session?.userId as string) || "";
 
         const maxRecordsToReturn  = 10;
@@ -44,7 +42,6 @@ router.get("/recommendations", async (req, res) => {
         const recommendedClassIDs = recommendedClasses.map(item => Number(item.classId))
 
         if (recommendedClassIDs.length < 1) {
-            // return res.status(204).json({ data: null });
             res.status(201).json({ "data": [] });
         }
 
@@ -332,7 +329,5 @@ router.get("/:id/users", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch class users" });
   }
 });
-
-
 
 export default router;
