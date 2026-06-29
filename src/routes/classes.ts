@@ -2,7 +2,7 @@ import express from "express";
 import { and, desc, eq, getTableColumns, ilike, or, sql, inArray } from "drizzle-orm";
 
 import {db} from "../db/index.js";
-import { classes, departments, enrollments, subjects, user } from "../db/schema/index.js";
+import { classes, departments, enrollments, subjects, user, enrollmentClassCountsView  } from "../db/schema/index.js";
 
 const router = express.Router();
 
@@ -58,6 +58,7 @@ router.get("/recommendations", async (req, res) => {
         const classesList = await db
             .select({
                 ...getTableColumns(classes),
+                spacesLeft: sql<number>`(${classes.capacity} - coalesce(${enrollmentClassCountsView.seatsUsed}, 0))::int`,
                 subject: {
                     ...getTableColumns(subjects),
                 },
@@ -68,6 +69,10 @@ router.get("/recommendations", async (req, res) => {
             .from(classes)
             .leftJoin(subjects, eq(classes.subjectId, subjects.id))
             .leftJoin(user, eq(classes.teacherId, user.id))
+            .leftJoin(
+                enrollmentClassCountsView,
+                eq(classes.id, enrollmentClassCountsView.classId)
+            )
             .where(whereClause)
             .orderBy(desc(classes.createdAt)) //strengthMap will be used to sort later - this is a default backup if any issues
 
@@ -130,16 +135,21 @@ router.get("/", async (req, res) => {
         const classesList = await db
             .select({
                 ...getTableColumns(classes),
-        subject: {
-          ...getTableColumns(subjects),
-        },
-        teacher: {
-          ...getTableColumns(user),
-        },
+                spacesLeft: sql<number>`(${classes.capacity} - coalesce(${enrollmentClassCountsView.seatsUsed}, 0))::int`,
+                subject: {
+                  ...getTableColumns(subjects),
+                },
+                teacher: {
+                  ...getTableColumns(user),
+                },
             })
             .from(classes)
             .leftJoin(subjects, eq(classes.subjectId, subjects.id))
             .leftJoin(user, eq(classes.teacherId, user.id))
+            .leftJoin(
+                enrollmentClassCountsView,
+                eq(classes.id, enrollmentClassCountsView.classId)
+            )
             .where(whereClause)
             .orderBy(desc(classes.createdAt))
             .limit(limitPerPage)
@@ -210,6 +220,7 @@ router.get("/:id", async (req, res) => {
         const [classDetails] = await db
             .select({
                 ...getTableColumns(classes),
+                spacesLeft: sql<number>`(${classes.capacity} - coalesce(${enrollmentClassCountsView.seatsUsed}, 0))::int`,
                 subject: {
                     ...getTableColumns(subjects),
                 },
@@ -222,9 +233,13 @@ router.get("/:id", async (req, res) => {
             })
             .from(classes)
             .leftJoin(subjects, eq(classes.subjectId, subjects.id))
-      .leftJoin(departments, eq(subjects.departmentId, departments.id))
+            .leftJoin(departments, eq(subjects.departmentId, departments.id))
             .leftJoin(user, eq(classes.teacherId, user.id))
-      .where(eq(classes.id, classId));
+            .leftJoin(
+                enrollmentClassCountsView,
+                eq(classes.id, enrollmentClassCountsView.classId)
+            )
+            .where(eq(classes.id, classId));
 
     if (!classDetails) {
       return res.status(404).json({ error: "Class not found" });
