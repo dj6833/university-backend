@@ -23,7 +23,9 @@ router.get("/recommendations", async (req, res) => {
                 classId: string;
                 match_strength: string;
             }[];
+
         }
+        const timeoutSignal = AbortSignal.timeout(90000); //required in Prod as ANALYSIS_SERVICE goes offline and needs time to spin-up
 
         const recommendationsResponseRaw = await fetch(`${process.env.ANALYSIS_SERVICE_URL}recommendations`, {
             method: 'POST',
@@ -34,6 +36,7 @@ router.get("/recommendations", async (req, res) => {
                 api_password: process.env.RECOMMEND_ENROLLMENTS_API_PASSWORD!,
                 student_id: userId,
                 max_records: maxRecordsToReturn}),
+            signal: timeoutSignal //if this isn't enough, a health-endpoint on Python service which can be called in advance might be needed
         });
 
         const recommendationsResponseRawJson = await recommendationsResponseRaw.json() as recommendationsAPIModel;
