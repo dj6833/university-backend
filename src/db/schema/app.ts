@@ -1,10 +1,11 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
     integer,
     jsonb,
   index,
     pgEnum,
     pgTable,
+    pgView,
     text,
     timestamp,
     varchar,
@@ -99,6 +100,16 @@ export const enrollments = pgTable(
       table.classId
     ),
   })
+);
+
+export const enrollmentClassCountsView = pgView("enrollment_class_counts_view").as((db) =>
+    db
+        .select({
+            classId: enrollments.classId,
+            seatsUsed: sql<number>`count(*)::int`.as("seats_used"),
+        })
+        .from(enrollments)
+        .groupBy(enrollments.classId)
 );
 
 export const departmentsRelations = relations(departments, ({ many }) => ({

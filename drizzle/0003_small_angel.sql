@@ -1,0 +1,1 @@
+CREATE VIEW "public"."enrollment_class_counts_view" AS (select "class_id", count(*)::int as "seats_used" from "enrollments" group by "enrollments"."class_id");
