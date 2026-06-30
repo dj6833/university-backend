@@ -1,8 +1,11 @@
 import express from "express";
 import {and, desc, eq, getTableColumns, ilike, or, sql} from "drizzle-orm";
 
-import { db } from "../db/index.js";
-import { classes, departments, enrollments, subjects, user } from "../db/schema/index.js";
+import { db, pool} from "../db/index.js";
+import { classes, departments, enrollments, subjects, user, enrollmentClassCountsView } from "../db/schema/index.js";
+
+import { drizzle } from "drizzle-orm/neon-serverless";
+import { Pool } from "@neondatabase/serverless";
 
 if (!process.env.ANALYSIS_SERVICE_URL) throw new Error("ANALYSIS_SERVICE_URL is not set in .env file");
 
@@ -119,70 +122,103 @@ const getEnrollmentDetails = async (enrollmentId: number) => {
 // Create enrollment
 router.post("/", async (req, res) => {
     try {
-        const { classId } = req.body;
+        // Enforce implicit type-casting sanitization on incoming bodies
+        const classId = Number(req.body.classId);
         const userId = req.user?.id;
 
-        if (!classId) {
-            return res
-                .status(400)
-                .json({error: "classId is required"});
+        if (!classId || isNaN(classId)) {
+            return res.status(400).json({ error: "Valid numeric classId is required" });
         }
 
         if (!userId) {
-            throw new Error("could not establish userID");
+            // Return a structured 401 client payload rather than crashing the full thread
+            return res.status(401).json({ error: "Authentication failed. Could not establish user ID." });
         }
 
-        const [classRecord] = await db
-            .select()
-            .from(classes)
-            .where(eq(classes.id, classId));
+        try {
+            const client = await pool.connect();
 
-        if (!classRecord) return res.status(404).json({error: "Class not found"});
+            try {
+                const txDb = drizzle({ client });
 
-        // previous check when studentId was passed as form variable, can skip now comes from session?
-        // consider reintroducing if need to validate anything e.g. type of user=student etc
-        // const [student] = await db
-        //     .select()
-        //     .from(user)
-        //     .where(eq(user.id, userId));
-        //
-        // if (!student) return res.status(404).json({error: "Student not found"});
+                // 🌟 THE FIX: Return your success data payload out to this variable block
+                const newEnrollmentId = await txDb.transaction(async (tx) => {
 
-        const [existingEnrollment] = await db
-            .select({id: enrollments.id})
-            .from(enrollments)
-            .where(
-                and(
-                    eq(enrollments.classId, classId),
-                    eq(enrollments.studentId, userId)
-                )
-            );
+                    // Step 1: Fetch capacity metrics and LOCK the specific class row instantly
+                    const [classMetrics] = await tx
+                        .select({
+                            capacity: classes.capacity,
+                            seatsUsed: sql<number>`coalesce(${enrollmentClassCountsView.seatsUsed}, 0)::int`,
+                        })
+                        .from(classes)
+                        .leftJoin(enrollmentClassCountsView, eq(classes.id, enrollmentClassCountsView.classId))
+                        .where(eq(classes.id, classId))
+                        .for("update", { of: classes }); // Safely locked to core table
 
-        if (existingEnrollment)
-            return res
-                .status(409)
-                .json({error: "Student already enrolled in class"});
+                    if (!classMetrics) throw new Error("CLASS_NOT_FOUND");
 
-        const [createdEnrollment] = await db
-            .insert(enrollments)
-            .values({
-                classId: classId,
-                studentId: userId
-            })
-            .returning({ id: enrollments.id });
+                    // Step 2: 🔒 SAFE DUPLICATION CHECK: Now protected safely inside the row-lock queue!
+                    const [existingEnrollment] = await tx
+                        .select({ id: enrollments.id })
+                        .from(enrollments)
+                        .where(
+                            and(
+                                eq(enrollments.classId, classId),
+                                eq(enrollments.studentId, userId)
+                            )
+                        );
 
-        if (!createdEnrollment) {
-            throw new Error("attempt to create new enrollment record failed");
+                    if (existingEnrollment) throw new Error("ALREADY_ENROLLED");
+
+                    // Step 3: Capacity Calculation
+                    const spacesLeft = classMetrics.capacity - classMetrics.seatsUsed;
+                    if (spacesLeft <= 0) throw new Error("CLASS_IS_FULL");
+
+                    // Step 4: Insert the record
+                    const [newEnrollment] = await tx
+                        .insert(enrollments)
+                        .values({
+                            classId: classId,
+                            studentId: userId,
+                        })
+                        .returning({ id: enrollments.id });
+
+                    if (!newEnrollment) throw new Error("INSERT_FAILED");
+
+                    return newEnrollment.id; // Return the ID integer to resolve the transaction block
+                });
+
+                // 🌟 THE FIX: Fire your network response now that the transaction has safely COMMITTED!
+                return res.status(201).json({
+                    success: true,
+                    enrollmentId: newEnrollmentId
+                });
+
+            } finally {
+                // ALWAYS RELEASE: Cleanly return the client thread back to your centralized pool
+                client.release();
+            }
+        } catch (error: any) {
+            // Intercept custom data error flags gracefully
+            if (error.message === "ALREADY_ENROLLED") {
+                return res.status(409).json({ error: "Registration failed. Student is already enrolled in this class." });
+            }
+            if (error.message === "CLASS_IS_FULL") {
+                return res.status(409).json({ error: "Registration failed. This class has reached maximum capacity." });
+            }
+            if (error.message === "CLASS_NOT_FOUND") {
+                return res.status(404).json({ error: "The requested class does not exist." });
+            }
+
+            console.error("POST /enrollments error inside db-transaction:", error);
+            return res.status(500).json({ error: "Failed to create enrollment" });
         }
-
-        const enrollment = await getEnrollmentDetails(createdEnrollment.id);
-
-        res.status(201).json({data: enrollment});
     } catch (error) {
         console.error("POST /enrollments error:", error);
-        res.status(500).json({error: "Failed to create enrollment"});
+        return res.status(500).json({ error: "Failed to create enrollment" });
     }
 });
+
 
 // Join class by invite code
 router.post("/join", async (req, res) => {

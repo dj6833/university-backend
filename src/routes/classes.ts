@@ -216,14 +216,19 @@ router.get("/:id", async (req, res) => {
     try{
         const classId = Number(req.params.id);
 
-    if (!Number.isFinite(classId)) {
-      return res.status(400).json({ error: "Invalid class id" });
-    }
+        const userId = (req.session?.userId as string) || "";
+
+        if (!userId || userId.length === 0) return res.status(404).json({ error: "User ID not found" });
+
+        if (!Number.isFinite(classId)) {
+          return res.status(400).json({ error: "Invalid class id" });
+        }
 
         const [classDetails] = await db
             .select({
                 ...getTableColumns(classes),
                 spacesLeft: sql<number>`(${classes.capacity} - coalesce(${enrollmentClassCountsView.seatsUsed}, 0))::int`,
+                enrolledAlready: sql<boolean>`CASE WHEN ${enrollments.id} IS NOT NULL THEN true ELSE false END`,
                 subject: {
                     ...getTableColumns(subjects),
                 },
@@ -233,11 +238,22 @@ router.get("/:id", async (req, res) => {
                 teacher: {
                     ...getTableColumns(user),
                 },
+                // enrollment: {
+                //     ...getTableColumns(enrollments),
+                // }
             })
             .from(classes)
             .leftJoin(subjects, eq(classes.subjectId, subjects.id))
             .leftJoin(departments, eq(subjects.departmentId, departments.id))
             .leftJoin(user, eq(classes.teacherId, user.id))
+            //.leftJoin(enrollments, eq(enrollments.studentId, userId))
+            .leftJoin(
+                enrollments,
+                and(
+                    eq(enrollments.classId, classes.id),
+                    eq(enrollments.studentId, userId)
+                )
+            )
             .leftJoin(
                 enrollmentClassCountsView,
                 eq(classes.id, enrollmentClassCountsView.classId)

@@ -14,16 +14,16 @@ import {seedData, classSeedImages} from "./seed-data.js";
 import {drizzle} from "drizzle-orm/neon-http";
 
 //region seeding-constants > >
-const usersToCreate:number = 200
+const usersToCreate:number = 2000; //200
 const adminsToCreate:number = 3
 const teacherPercentageToCreate:number = 0.05
-const departmentsToCreate:number = 2 //max 10 supported currently
+const departmentsToCreate:number = 10 ; // 2 //max 10 supported currently
 //Randomise No. of Subjects per department using min & max here
-const minSubjectsPerDepartmentToCreate:number = 3 //max 10 supported currently
+const minSubjectsPerDepartmentToCreate:number = 10 ; //3 //max 10 supported currently
 const maxSubjectsPerDepartmentToCreate:number = 10 //max 10 supported currently
 //Randomise No. of classes per subject using min & max here
-const minClassesPerSubjectToCreate:number = 1 //max 5 supported currently
-const maxClassesPerDepartmentToCreate:number = 5 //max 5 supported currently
+const minClassesPerSubjectToCreate:number = 5 ; //1 //max 5 supported currently
+const maxClassesPerSubjectToCreate:number = 5 //max 5 supported currently
 //Randomise No. of class enrollments per student using min & max here
 const minClassesPerStudent:number = 0
 const maxClassesPerStudent:number = 8
@@ -197,6 +197,8 @@ async function main() {
 
     // 2. Departments, Subjects, and Classes
     const allClassIds: number[] = [];
+    const classCapacityMap: Record<number, number> = {};
+    const seededClassesTracker: Array<{ id: number; name: string }> = [];
 
     for (const dept of seedData.slice(0,departmentsToCreate)) {
         const deptCode = dept.name.substring(0, 3).toUpperCase();
@@ -231,7 +233,7 @@ async function main() {
                 throw new Error('newSubject cannot be null');
             }
 
-            const noOfClassesToCreate = getRandomInclusive(minClassesPerSubjectToCreate,maxClassesPerDepartmentToCreate);
+            const noOfClassesToCreate = getRandomInclusive(minClassesPerSubjectToCreate,maxClassesPerSubjectToCreate);
 
             const classesToInsert = subjectData.classes.slice(0,noOfClassesToCreate).map((c) => {
                 const imageCloudUrl = classSeedImages[Math.floor(Math.random() * classSeedImages.length)] || 'null';
@@ -255,22 +257,95 @@ async function main() {
             });
 
             const newClasses = await db.insert(classes).values(classesToInsert).returning();
-            allClassIds.push(...newClasses.map((c) => c.id));
+
+            //allClassIds.push(...newClasses.map((c) => c.id));
+            // 🌟 THE FIX: Instead of just tracking IDs, store a lookup mapping of { id: capacity }
+            // const classCapacityMap: Record<number, number> = {};
+            newClasses.forEach((c) => {
+                allClassIds.push(c.id);
+                classCapacityMap[c.id] = c.capacity; // Track the maximum allowed ceiling
+            });
+
+            // 🌟 THE FIX: Push the details into the global tracker so they can be accessed at the bottom of the script
+            seededClassesTracker.push(...newClasses.map((c) => ({ id: c.id, name: c.name })));
         }
     }
 
-    // 3. Enrollments - for each student record, shuffle available classes and assign n to the student using slice()
-    const enrollmentEntries = studentIds.flatMap((studentId) => {
-        const randomClasses = [...allClassIds]
-            .sort(() => 0.5 - Math.random())
-            .slice(0, getRandomInclusive(minClassesPerStudent,maxClassesPerStudent));
+    // // 3. Enrollments - for each student record, shuffle available classes and assign n to the student using slice()
+    // const enrollmentEntries = studentIds.flatMap((studentId) => {
+    //     const randomClasses = [...allClassIds]
+    //         .sort(() => 0.5 - Math.random())
+    //         .slice(0, getRandomInclusive(minClassesPerStudent,maxClassesPerStudent));
+    //
+    //     return randomClasses.map((classId) => ({studentId, classId}));
+    // });
 
-        return randomClasses.map((classId) => ({studentId, classId}));
+    // 🌟 THE FIX: Track the running count of seats filled per class during this loop iteration
+    const classEnrollmentCounts: Record<number, number> = {};
+    allClassIds.forEach(id => {
+        classEnrollmentCounts[id] = 0;
     });
 
+    const enrollmentEntries = studentIds.flatMap((studentId) => {
+        // 1. Determine how many classes this specific student wants to join
+        const targetsToEnroll = getRandomInclusive(minClassesPerStudent, maxClassesPerStudent);
+
+        // 2. Filter the master class list down to only ones that STILL HAVE VACANT SPACES!
+        const availableClasses = allClassIds.filter((classId) => {
+            const currentCount = classEnrollmentCounts[classId] ?? 0;
+            const maxCapacity = classCapacityMap[classId] ?? 0;
+            return currentCount < maxCapacity; // Only allow if a seat is physically free
+        });
+
+        // 3. Shuffle the remaining vacant classes randomly to preserve your randomized seeding style
+        const selectedClasses = availableClasses
+            .sort(() => 0.5 - Math.random())
+            .slice(0, targetsToEnroll);
+
+        // 4. Update our in-memory capacity trackers to reflect the seats we are about to claim
+        selectedClasses.forEach((classId) => {
+            classEnrollmentCounts[classId] = (classEnrollmentCounts[classId] ?? 0) + 1;
+        });
+
+        // 5. Map into your standard database insertion layout structure
+        return selectedClasses.map((classId) => ({
+            studentId,
+            classId
+        }));
+    });
+
+    // Final insertion remains pristine, untouched, and lightning-fast!
     if (enrollmentEntries.length > 0) {
         await db.insert(enrollments).values(enrollmentEntries);
     }
+
+    // 🌟 THE TERMINAL SUMMARY PANEL
+    console.log("\n=======================================================");
+    console.log("🎓 SEEDING COMPLETE: CAPACITY AUDIT REPORT");
+    console.log("=======================================================");
+
+    const capacityAuditReport = allClassIds.map((classId) => {
+        const maxCapacity = classCapacityMap[classId] ?? 0;
+        const seatsFilled = classEnrollmentCounts[classId] ?? 0;
+        const spacesLeft = maxCapacity - seatsFilled;
+
+        // 🌟 THE FIX: Look up the class name from our global tracker array safely!
+        const matchingClass = seededClassesTracker.find((c) => c.id === classId);
+
+        return {
+            "Class ID": classId,
+            "Class Name": matchingClass?.name || "Unknown Module",
+            "Max Capacity": maxCapacity,
+            "Seats Filled": seatsFilled, // Fixed from seatsUsed to match your logic!
+            "Remaining Spaces": spacesLeft,
+            "Status": spacesLeft === 0 ? "FULL" : spacesLeft <= 3 ? "ALMOST FULL" : "AVAILABLE"
+        };
+    });
+
+    console.table(capacityAuditReport);
+
+    console.log(`✨ Total Enrolment Records Generated: ${enrollmentEntries.length}`);
+    console.log("=======================================================\n");
 
     console.log("Seed complete!");
 
