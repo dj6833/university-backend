@@ -23,7 +23,9 @@ router.get("/recommendations", async (req, res) => {
                 classId: string;
                 match_strength: string;
             }[];
+
         }
+        const timeoutSignal = AbortSignal.timeout(90000); //required in Prod as ANALYSIS_SERVICE goes offline and needs time to spin-up
 
         const recommendationsResponseRaw = await fetch(`${process.env.ANALYSIS_SERVICE_URL}recommendations`, {
             method: 'POST',
@@ -34,6 +36,7 @@ router.get("/recommendations", async (req, res) => {
                 api_password: process.env.RECOMMEND_ENROLLMENTS_API_PASSWORD!,
                 student_id: userId,
                 max_records: maxRecordsToReturn}),
+            signal: timeoutSignal //if this isn't enough, a health-endpoint on Python service which can be called in advance might be needed
         });
 
         const recommendationsResponseRawJson = await recommendationsResponseRaw.json() as recommendationsAPIModel;
@@ -213,14 +216,19 @@ router.get("/:id", async (req, res) => {
     try{
         const classId = Number(req.params.id);
 
-    if (!Number.isFinite(classId)) {
-      return res.status(400).json({ error: "Invalid class id" });
-    }
+        const userId = (req.session?.userId as string) || "";
+
+        if (!userId || userId.length === 0) return res.status(404).json({ error: "User ID not found" });
+
+        if (!Number.isFinite(classId)) {
+          return res.status(400).json({ error: "Invalid class id" });
+        }
 
         const [classDetails] = await db
             .select({
                 ...getTableColumns(classes),
                 spacesLeft: sql<number>`(${classes.capacity} - coalesce(${enrollmentClassCountsView.seatsUsed}, 0))::int`,
+                enrolledAlready: sql<boolean>`CASE WHEN ${enrollments.id} IS NOT NULL THEN true ELSE false END`,
                 subject: {
                     ...getTableColumns(subjects),
                 },
@@ -235,6 +243,13 @@ router.get("/:id", async (req, res) => {
             .leftJoin(subjects, eq(classes.subjectId, subjects.id))
             .leftJoin(departments, eq(subjects.departmentId, departments.id))
             .leftJoin(user, eq(classes.teacherId, user.id))
+            .leftJoin(
+                enrollments,
+                and(
+                    eq(enrollments.classId, classes.id),
+                    eq(enrollments.studentId, userId)
+                )
+            )
             .leftJoin(
                 enrollmentClassCountsView,
                 eq(classes.id, enrollmentClassCountsView.classId)
