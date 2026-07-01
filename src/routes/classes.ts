@@ -238,15 +238,11 @@ router.get("/:id", async (req, res) => {
                 teacher: {
                     ...getTableColumns(user),
                 },
-                // enrollment: {
-                //     ...getTableColumns(enrollments),
-                // }
             })
             .from(classes)
             .leftJoin(subjects, eq(classes.subjectId, subjects.id))
             .leftJoin(departments, eq(subjects.departmentId, departments.id))
             .leftJoin(user, eq(classes.teacherId, user.id))
-            //.leftJoin(enrollments, eq(enrollments.studentId, userId))
             .leftJoin(
                 enrollments,
                 and(

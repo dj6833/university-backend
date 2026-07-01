@@ -122,7 +122,7 @@ const getEnrollmentDetails = async (enrollmentId: number) => {
 // Create enrollment
 router.post("/", async (req, res) => {
     try {
-        // Enforce implicit type-casting sanitization on incoming bodies
+        // Enforce implicit type-casting on incoming bodies
         const classId = Number(req.body.classId);
         const userId = req.user?.id;
 
@@ -131,7 +131,6 @@ router.post("/", async (req, res) => {
         }
 
         if (!userId) {
-            // Return a structured 401 client payload rather than crashing the full thread
             return res.status(401).json({ error: "Authentication failed. Could not establish user ID." });
         }
 
@@ -141,10 +140,9 @@ router.post("/", async (req, res) => {
             try {
                 const txDb = drizzle({ client });
 
-                // 🌟 THE FIX: Return your success data payload out to this variable block
                 const newEnrollmentId = await txDb.transaction(async (tx) => {
 
-                    // Step 1: Fetch capacity metrics and LOCK the specific class row instantly
+                    // Fetch capacity metrics and LOCK the specific class row instantly
                     const [classMetrics] = await tx
                         .select({
                             capacity: classes.capacity,
@@ -153,11 +151,10 @@ router.post("/", async (req, res) => {
                         .from(classes)
                         .leftJoin(enrollmentClassCountsView, eq(classes.id, enrollmentClassCountsView.classId))
                         .where(eq(classes.id, classId))
-                        .for("update", { of: classes }); // Safely locked to core table
+                        .for("update", { of: classes }); // Safely locked to core table (otherwise it attempts to lock left-join tables and throws a NULL error)
 
                     if (!classMetrics) throw new Error("CLASS_NOT_FOUND");
 
-                    // Step 2: 🔒 SAFE DUPLICATION CHECK: Now protected safely inside the row-lock queue!
                     const [existingEnrollment] = await tx
                         .select({ id: enrollments.id })
                         .from(enrollments)
@@ -170,11 +167,9 @@ router.post("/", async (req, res) => {
 
                     if (existingEnrollment) throw new Error("ALREADY_ENROLLED");
 
-                    // Step 3: Capacity Calculation
                     const spacesLeft = classMetrics.capacity - classMetrics.seatsUsed;
                     if (spacesLeft <= 0) throw new Error("CLASS_IS_FULL");
 
-                    // Step 4: Insert the record
                     const [newEnrollment] = await tx
                         .insert(enrollments)
                         .values({
@@ -185,21 +180,18 @@ router.post("/", async (req, res) => {
 
                     if (!newEnrollment) throw new Error("INSERT_FAILED");
 
-                    return newEnrollment.id; // Return the ID integer to resolve the transaction block
+                    return newEnrollment.id;
                 });
 
-                // 🌟 THE FIX: Fire your network response now that the transaction has safely COMMITTED!
                 return res.status(201).json({
                     success: true,
                     enrollmentId: newEnrollmentId
                 });
 
             } finally {
-                // ALWAYS RELEASE: Cleanly return the client thread back to your centralized pool
-                client.release();
+                client.release(); //Cleanly return the client thread back to pool
             }
         } catch (error: any) {
-            // Intercept custom data error flags gracefully
             if (error.message === "ALREADY_ENROLLED") {
                 return res.status(409).json({ error: "Registration failed. Student is already enrolled in this class." });
             }

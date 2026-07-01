@@ -258,70 +258,48 @@ async function main() {
 
             const newClasses = await db.insert(classes).values(classesToInsert).returning();
 
-            //allClassIds.push(...newClasses.map((c) => c.id));
-            // 🌟 THE FIX: Instead of just tracking IDs, store a lookup mapping of { id: capacity }
-            // const classCapacityMap: Record<number, number> = {};
             newClasses.forEach((c) => {
                 allClassIds.push(c.id);
-                classCapacityMap[c.id] = c.capacity; // Track the maximum allowed ceiling
+                classCapacityMap[c.id] = c.capacity;
             });
 
-            // 🌟 THE FIX: Push the details into the global tracker so they can be accessed at the bottom of the script
             seededClassesTracker.push(...newClasses.map((c) => ({ id: c.id, name: c.name })));
         }
     }
 
-    // // 3. Enrollments - for each student record, shuffle available classes and assign n to the student using slice()
-    // const enrollmentEntries = studentIds.flatMap((studentId) => {
-    //     const randomClasses = [...allClassIds]
-    //         .sort(() => 0.5 - Math.random())
-    //         .slice(0, getRandomInclusive(minClassesPerStudent,maxClassesPerStudent));
-    //
-    //     return randomClasses.map((classId) => ({studentId, classId}));
-    // });
-
-    // 🌟 THE FIX: Track the running count of seats filled per class during this loop iteration
     const classEnrollmentCounts: Record<number, number> = {};
     allClassIds.forEach(id => {
         classEnrollmentCounts[id] = 0;
     });
 
     const enrollmentEntries = studentIds.flatMap((studentId) => {
-        // 1. Determine how many classes this specific student wants to join
         const targetsToEnroll = getRandomInclusive(minClassesPerStudent, maxClassesPerStudent);
-
-        // 2. Filter the master class list down to only ones that STILL HAVE VACANT SPACES!
         const availableClasses = allClassIds.filter((classId) => {
             const currentCount = classEnrollmentCounts[classId] ?? 0;
             const maxCapacity = classCapacityMap[classId] ?? 0;
             return currentCount < maxCapacity; // Only allow if a seat is physically free
         });
 
-        // 3. Shuffle the remaining vacant classes randomly to preserve your randomized seeding style
         const selectedClasses = availableClasses
             .sort(() => 0.5 - Math.random())
             .slice(0, targetsToEnroll);
 
-        // 4. Update our in-memory capacity trackers to reflect the seats we are about to claim
         selectedClasses.forEach((classId) => {
             classEnrollmentCounts[classId] = (classEnrollmentCounts[classId] ?? 0) + 1;
         });
 
-        // 5. Map into your standard database insertion layout structure
         return selectedClasses.map((classId) => ({
             studentId,
             classId
         }));
     });
 
-    // Final insertion remains pristine, untouched, and lightning-fast!
     if (enrollmentEntries.length > 0) {
         await db.insert(enrollments).values(enrollmentEntries);
     }
 
-    // 🌟 THE TERMINAL SUMMARY PANEL
     console.log("\n=======================================================");
-    console.log("🎓 SEEDING COMPLETE: CAPACITY AUDIT REPORT");
+    console.log("   SEEDING COMPLETE: CLASS CAPACITY REPORT");
     console.log("=======================================================");
 
     const capacityAuditReport = allClassIds.map((classId) => {
@@ -329,14 +307,13 @@ async function main() {
         const seatsFilled = classEnrollmentCounts[classId] ?? 0;
         const spacesLeft = maxCapacity - seatsFilled;
 
-        // 🌟 THE FIX: Look up the class name from our global tracker array safely!
         const matchingClass = seededClassesTracker.find((c) => c.id === classId);
 
         return {
             "Class ID": classId,
             "Class Name": matchingClass?.name || "Unknown Module",
             "Max Capacity": maxCapacity,
-            "Seats Filled": seatsFilled, // Fixed from seatsUsed to match your logic!
+            "Seats Filled": seatsFilled,
             "Remaining Spaces": spacesLeft,
             "Status": spacesLeft === 0 ? "FULL" : spacesLeft <= 3 ? "ALMOST FULL" : "AVAILABLE"
         };
@@ -344,7 +321,7 @@ async function main() {
 
     console.table(capacityAuditReport);
 
-    console.log(`✨ Total Enrolment Records Generated: ${enrollmentEntries.length}`);
+    console.log(`Total Enrolment Records Generated: ${enrollmentEntries.length}`);
     console.log("=======================================================\n");
 
     console.log("Seed complete!");
