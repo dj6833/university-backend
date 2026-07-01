@@ -19,12 +19,14 @@ router.get("/", async (req, res) => {
 
     const userRole = (req.user?.role as string) || "";
 
-    if (!['admin', 'teacher'].includes(userRole)){
-      return res.status(403).json({
-        error: "Forbidden",
-        message: "Access Denied: Departments are not available for your user profile."
-      });
-    }
+    // Decided to allow all users to view department, as it's a filter for classes so makes sense
+    // Instead, we should limit who can CUD these records
+    // if (!['admin', 'teacher'].includes(userRole)){
+    //   return res.status(403).json({
+    //     error: "Forbidden",
+    //     message: "Access Denied: Departments are not available for your user profile."
+    //   });
+    // }
 
     const { search, page = 1, limit = 10 } = req.query;
 
