@@ -1,7 +1,8 @@
 import "dotenv/config";
 import { drizzle as drizzleHttp } from "drizzle-orm/neon-http";
 import { neon, Pool } from "@neondatabase/serverless";
-import * as schema from "./schema";
+//import * as schema from "./schema"; //think this is causing build fail in Render; below aligns with other, working references
+import * as schema from "./schema/index.js";
 
 if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL is not defined");
