@@ -36,6 +36,13 @@
       "when": 1782982196077,
       "tag": "0004_low_mephistopheles",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1782999722561,
+      "tag": "0005_parched_terrax",
+      "breakpoints": true
     }
   ]
 }

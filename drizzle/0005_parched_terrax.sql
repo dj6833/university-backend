@@ -1,0 +1,1 @@
+DROP TABLE "staging_test_table_1560" CASCADE;
