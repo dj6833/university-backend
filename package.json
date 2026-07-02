@@ -17,6 +17,10 @@
   "author": "",
   "license": "ISC",
   "type": "module",
+  "@comment dependencies": [
+    "These are the comments for the `dependencies` section.",
+    "2026-07-02 moved drizzle-kit from devDependencies to dependencies as required during docker build in render to perform DB migrations"
+  ],
   "dependencies": {
     "@arcjet/inspect": "^1.4.0",
     "@arcjet/node": "^1.4.0",
@@ -26,6 +30,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "drizzle-orm": "^0.45.1",
+    "drizzle-kit": "^0.31.10",
     "drizzle-seed": "^0.3.1",
     "express": "^5.2.1",
     "rimraf": "^6.1.3"
@@ -35,7 +40,6 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.5.0",
-    "drizzle-kit": "^0.31.10",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
