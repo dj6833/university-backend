@@ -102,6 +102,13 @@ export const enrollments = pgTable(
   })
 );
 
+export const stagingTestTable = pgTable("staging_test_table_1560", {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    testValue: text("test_value").notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+
 export const enrollmentClassCountsView = pgView("enrollment_class_counts_view").as((db) =>
     db
         .select({

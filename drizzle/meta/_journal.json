@@ -29,6 +29,13 @@
       "when": 1782726254872,
       "tag": "0003_small_angel",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1782982196077,
+      "tag": "0004_low_mephistopheles",
+      "breakpoints": true
     }
   ]
 }
