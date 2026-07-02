@@ -5,8 +5,8 @@ set -e
 echo "==> Environment: $NODE_ENV"
 
 # 1. Run migrations using your package.json script
-echo "==> Running Drizzle Migrations..."
-npm run db:migrate
+echo "==> Running Drizzle Migrations... temp disabled to check render build ok without this"
+# npm run db:migrate
 
 # 2. Start the application
 echo "==> Starting Application..."
