@@ -48,7 +48,7 @@ COPY package.json package-lock.json ./
 COPY --from=deps /usr/src/app/node_modules ./node_modules
 COPY --from=build /usr/src/app/dist ./dist
 # If your migrations folder is separate from /dist, copy it too:
-COPY migrations ./migrations
+COPY drizzle ./drizzle
 COPY drizzle.config.ts ./
 
 # Ensure the 'node' user owns the files
