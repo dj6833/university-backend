@@ -50,6 +50,7 @@ COPY package.json package-lock.json drizzle.config.ts ./
 COPY --from=deps /usr/src/app/node_modules ./node_modules
 COPY --from=build /usr/src/app/dist ./dist
 COPY drizzle ./drizzle
+COPY src ./src
 
 # Copy and set up the automated entrypoint
 COPY entrypoint.sh ./
