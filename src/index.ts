@@ -12,6 +12,7 @@ import classesRouter from "./routes/classes.js";
 import departmentsRouter from "./routes/departments.js";
 import statsRouter from "./routes/stats.js";
 import enrollmentsRouter from "./routes/enrollments.js";
+import healthRouter from "./routes/health.js";
 
 import securityMiddleware from "./middleware/security.js";
 import {auth} from "./lib/auth.js";
@@ -32,7 +33,8 @@ app.use(
   })
 );
 
-//expose api/auth routes first, before we add session checks
+//expose health and api/auth routes first, before we add session checks
+app.use("/health", healthRouter);
 app.all("/api/auth/*splat", toNodeHandler(auth));
 
 app.use(express.json());
