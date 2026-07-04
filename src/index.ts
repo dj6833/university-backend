@@ -34,7 +34,7 @@ app.use(
 );
 
 //expose health and api/auth routes first, before we add session checks
-app.use("/health", healthRouter);
+app.use("/api/health", healthRouter);
 app.all("/api/auth/*splat", toNodeHandler(auth));
 
 app.use(express.json());
