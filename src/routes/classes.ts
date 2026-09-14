@@ -27,17 +27,59 @@ router.get("/recommendations", async (req, res) => {
         }
         const timeoutSignal = AbortSignal.timeout(90000); //required in Prod as ANALYSIS_SERVICE goes offline and needs time to spin-up
 
-        const recommendationsResponseRaw = await fetch(`${process.env.ANALYSIS_SERVICE_URL}recommendations`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({  api_username: process.env.RECOMMEND_ENROLLMENTS_API_USERNAME!,
-                api_password: process.env.RECOMMEND_ENROLLMENTS_API_PASSWORD!,
-                student_id: userId,
-                max_records: maxRecordsToReturn}),
-            signal: timeoutSignal //if this isn't enough, a health-endpoint on Python service which can be called in advance might be needed
-        });
+        const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+        const maxRetries = 5;
+        let attempt = 0;
+        let recommendationsResponseRaw: Response | null = null;
+
+        // Clean up the trailing slash securely
+        const targetUrl = `${process.env.ANALYSIS_SERVICE_URL!.replace(/\/$/, '')}/recommendations`;
+
+        while (attempt < maxRetries) {
+            try {
+                attempt++;
+                const timeoutSignal = AbortSignal.timeout(15000); // 15s per individual request attempt
+
+                recommendationsResponseRaw = await fetch(targetUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        api_username: process.env.RECOMMEND_ENROLLMENTS_API_USERNAME!,
+                        api_password: process.env.RECOMMEND_ENROLLMENTS_API_PASSWORD!,
+                        student_id: userId,
+                        max_records: maxRecordsToReturn
+                    }),
+                    signal: timeoutSignal
+                });
+
+                // If Render sends a 503 (Service Unavailable/Spinning Up), force it into the retry block
+                if (recommendationsResponseRaw.status === 503) {
+                    throw new Error("Render service is spinning up...");
+                }
+
+                // If we hit this line, we successfully bypassed the 503 wall!
+                break;
+
+            } catch (error) {
+                console.warn(`Attempt ${attempt} failed. Backend is likely waking up. Retrying...`);
+
+                if (attempt >= maxRetries) {
+                    throw new Error(`Analysis service failed to respond after ${maxRetries} attempts.`);
+                }
+
+                // Wait a few seconds before trying again to allow the container time to boot
+                // Attempt 1: waits 3s | Attempt 2: waits 6s | Attempt 3: waits 9s...
+                await delay(attempt * 3000);
+            }
+        }
+
+        if (!recommendationsResponseRaw) {
+            throw new Error("Failed to receive a response from the analysis service.");
+        }
 
         const recommendationsResponseRawJson = await recommendationsResponseRaw.json() as recommendationsAPIModel;
         const recommendationsResponse = recommendationsResponseRawJson as recommendationsAPIModel;
