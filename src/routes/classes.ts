@@ -25,21 +25,29 @@ router.get("/recommendations", async (req, res) => {
             }[];
 
         }
-        const timeoutSignal = AbortSignal.timeout(90000); //required in Prod as ANALYSIS_SERVICE goes offline and needs time to spin-up
+        // ==========================================
+// 🔍 DEBUG ENTRY MARKER
+// ==========================================
+        console.log("➡️ ENTERING RECOMMENDATIONS ROUTINE", {
+            targetUrl: `${process.env.ANALYSIS_SERVICE_URL!.replace(/\/$/, '')}/recommendations`,
+            userId,
+            maxRecordsToReturn
+        });
 
         const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-        const maxRetries = 5;
+        const maxRetries = 4;
         let attempt = 0;
         let recommendationsResponseRaw: Response | null = null;
 
-        // Clean up the trailing slash securely
         const targetUrl = `${process.env.ANALYSIS_SERVICE_URL!.replace(/\/$/, '')}/recommendations`;
 
         while (attempt < maxRetries) {
             try {
                 attempt++;
-                const timeoutSignal = AbortSignal.timeout(15000); // 15s per individual request attempt
+                console.log(`📡 [Attempt ${attempt}/${maxRetries}] Initiating fetch to Python backend...`);
+
+                const timeoutSignal = AbortSignal.timeout(15000);
 
                 recommendationsResponseRaw = await fetch(targetUrl, {
                     method: 'POST',
@@ -56,31 +64,40 @@ router.get("/recommendations", async (req, res) => {
                     signal: timeoutSignal
                 });
 
-                // If Render sends a 503 (Service Unavailable/Spinning Up), force it into the retry block
-                if (recommendationsResponseRaw.status === 503) {
-                    throw new Error("Render service is spinning up...");
+                console.log(`📥 [Attempt ${attempt}/${maxRetries}] Received response status: ${recommendationsResponseRaw.status}`);
+
+                // 1. If we hit a 429 (Rate Limited) or 503 (Spinning up), force a retry
+                if (recommendationsResponseRaw.status === 429 || recommendationsResponseRaw.status === 503) {
+                    throw new Error(`Render proxy responded with status ${recommendationsResponseRaw.status}`);
                 }
 
-                // If we hit this line, we successfully bypassed the 503 wall!
-                break;
+                // 2. If it's a successful 200, we break out cleanly!
+                if (recommendationsResponseRaw.ok) {
+                    console.log(`✅ [Attempt ${attempt}/${maxRetries}] Connection established successfully!`);
+                    break;
+                }
+
+                throw new Error(`HTTP error! status: ${recommendationsResponseRaw.status}`);
 
             } catch (error) {
-                console.warn(`Attempt ${attempt} failed. Backend is likely waking up. Retrying...`);
+                console.warn(`⚠️ [Attempt ${attempt}/${maxRetries}] Failure caught: ${error instanceof Error ? error.message : 'Unknown exception'}`);
 
                 if (attempt >= maxRetries) {
-                    throw new Error(`Analysis service failed to respond after ${maxRetries} attempts.`);
+                    throw new Error(`Analysis service failed to respond after ${maxRetries} pacing attempts.`);
                 }
 
-                // Wait a few seconds before trying again to allow the container time to boot
-                // Attempt 1: waits 3s | Attempt 2: waits 6s | Attempt 3: waits 9s...
-                await delay(attempt * 3000);
+                const backoffTime = attempt * 8000;
+                console.log(`⏱️ Pacing traffic to avoid anti-bot block. Sleeping for ${backoffTime / 1000}s before next attempt...`);
+                await delay(backoffTime);
             }
         }
 
-        if (!recommendationsResponseRaw) {
-            throw new Error("Failed to receive a response from the analysis service.");
+// Ensure the code doesn't try to parse an error string as JSON
+        if (!recommendationsResponseRaw || !recommendationsResponseRaw.ok) {
+            throw new Error("Unable to establish a clean data connection with the backend engine.");
         }
 
+        console.log("Parsing validated JSON payload from Python analysis engine...");
         const recommendationsResponseRawJson = await recommendationsResponseRaw.json() as recommendationsAPIModel;
         const recommendationsResponse = recommendationsResponseRawJson as recommendationsAPIModel;
         const recommendedClasses = recommendationsResponse.recommended_classes;
