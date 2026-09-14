@@ -31,6 +31,7 @@ router.get("/recommendations", async (req, res) => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'Accept': 'application/json', // Tells Render's router NOT to send the HTML "spinning-up" page which trips up this request
             },
             body: JSON.stringify({  api_username: process.env.RECOMMEND_ENROLLMENTS_API_USERNAME!,
                 api_password: process.env.RECOMMEND_ENROLLMENTS_API_PASSWORD!,
