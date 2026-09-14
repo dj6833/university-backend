@@ -36,7 +36,7 @@ router.get("/recommendations", async (req, res) => {
 
         const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-        const maxRetries = 4;
+        const maxRetries = 8;
         let attempt = 0;
         let recommendationsResponseRaw: Response | null = null;
 
@@ -86,7 +86,7 @@ router.get("/recommendations", async (req, res) => {
                     throw new Error(`Analysis service failed to respond after ${maxRetries} pacing attempts.`);
                 }
 
-                const backoffTime = attempt * 8000;
+                const backoffTime = 12000;
                 console.log(`⏱️ Pacing traffic to avoid anti-bot block. Sleeping for ${backoffTime / 1000}s before next attempt...`);
                 await delay(backoffTime);
             }
