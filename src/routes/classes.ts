@@ -36,65 +36,72 @@ router.get("/recommendations", async (req, res) => {
 
         const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+        const baseUrl = process.env.ANALYSIS_SERVICE_URL!.replace(/\/$/, '');
+        const healthUrl = `${baseUrl}/healthz`;
+        const targetUrl = `${baseUrl}/recommendations`;
+
+        console.log("➡️ ENTERING RECOMMENDATIONS ROUTINE");
+
         const maxRetries = 8;
         let attempt = 0;
-        let recommendationsResponseRaw: Response | null = null;
-
-        const targetUrl = `${process.env.ANALYSIS_SERVICE_URL!.replace(/\/$/, '')}/recommendations`;
+        let isAwake = false;
 
         while (attempt < maxRetries) {
             try {
                 attempt++;
-                console.log(`📡 [Attempt ${attempt}/${maxRetries}] Initiating fetch to Python backend...`);
+                console.log(`[Wake Loop ${attempt}/${maxRetries}] Pinging Python health endpoint via GET...`);
 
-                const timeoutSignal = AbortSignal.timeout(15000);
-
-                recommendationsResponseRaw = await fetch(targetUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        api_username: process.env.RECOMMEND_ENROLLMENTS_API_USERNAME!,
-                        api_password: process.env.RECOMMEND_ENROLLMENTS_API_PASSWORD!,
-                        student_id: userId,
-                        max_records: maxRecordsToReturn
-                    }),
-                    signal: timeoutSignal
+                const wakeResponse = await fetch(healthUrl, {
+                    method: 'GET', //Must be a GET to pass Render's wake-up rules
+                    headers: { 'Accept': 'application/json' },
+                    signal: AbortSignal.timeout(10000)
                 });
 
-                console.log(`📥 [Attempt ${attempt}/${maxRetries}] Received response status: ${recommendationsResponseRaw.status}`);
-
-                // 1. If we hit a 429 (Rate Limited) or 503 (Spinning up), force a retry
-                if (recommendationsResponseRaw.status === 429 || recommendationsResponseRaw.status === 503) {
-                    throw new Error(`Render proxy responded with status ${recommendationsResponseRaw.status}`);
+                if (wakeResponse.status === 429 || wakeResponse.status === 503) {
+                    throw new Error(`Server still warming up (Status ${wakeResponse.status})`);
                 }
 
-                // 2. If it's a successful 200, we break out cleanly!
-                if (recommendationsResponseRaw.ok) {
-                    console.log(`✅ [Attempt ${attempt}/${maxRetries}] Connection established successfully!`);
+                if (wakeResponse.ok) {
+                    console.log(`Python container has woken up!`);
+                    isAwake = true;
                     break;
                 }
 
-                throw new Error(`HTTP error! status: ${recommendationsResponseRaw.status}`);
+                throw new Error(`Unexpected status code: ${wakeResponse.status}`);
 
             } catch (error) {
-                console.warn(`⚠️ [Attempt ${attempt}/${maxRetries}] Failure caught: ${error instanceof Error ? error.message : 'Unknown exception'}`);
+                console.warn(`[Wake Loop ${attempt}/${maxRetries}] ${error instanceof Error ? error.message : 'Network drop'}`);
 
-                if (attempt >= maxRetries) {
-                    throw new Error(`Analysis service failed to respond after ${maxRetries} pacing attempts.`);
-                }
+                if (attempt >= maxRetries) break;
 
-                const backoffTime = 12000;
-                console.log(`⏱️ Pacing traffic to avoid anti-bot block. Sleeping for ${backoffTime / 1000}s before next attempt...`);
-                await delay(backoffTime);
+                // Steady 12-second pacing window to give Docker time to spin up
+                await delay(12000);
             }
         }
 
-// Ensure the code doesn't try to parse an error string as JSON
-        if (!recommendationsResponseRaw || !recommendationsResponseRaw.ok) {
-            throw new Error("Unable to establish a clean data connection with the backend engine.");
+        if (!isAwake) {
+            throw new Error("Could not wake up the Analysis Service within the time limit.");
+        }
+
+        console.log("Server verified alive. Dispatched core POST data payload...");
+
+        const recommendationsResponseRaw = await fetch(targetUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({
+                api_username: process.env.RECOMMEND_ENROLLMENTS_API_USERNAME!,
+                api_password: process.env.RECOMMEND_ENROLLMENTS_API_PASSWORD!,
+                student_id: userId,
+                max_records: maxRecordsToReturn
+            }),
+            signal: AbortSignal.timeout(30000) // Generous window for python calculation
+        });
+
+        if (!recommendationsResponseRaw.ok) {
+            throw new Error(`Analysis payload rejected by server with status: ${recommendationsResponseRaw.status}`);
         }
 
         console.log("Parsing validated JSON payload from Python analysis engine...");
