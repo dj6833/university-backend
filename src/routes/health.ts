@@ -29,4 +29,25 @@ router.get(`/${HEALTH_CHECK_URL_SLUG}`, async (req, res) => {
   }
 });
 
+// Publicly accessible route for the frontend to safely trigger backend services spin-ups
+router.get("/warmup", async (req, res) => {
+  try {
+    const analysisServiceUrl = process.env.ANALYSIS_SERVICE_URL;
+
+    if (!analysisServiceUrl) {
+      return res.status(500).json({ error: "Upstream analysis configuration missing" });
+    }
+
+    const targetRedirect = `${analysisServiceUrl.replace(/\/$/, "")}/healthz`;
+
+    console.log(`Relaying analysis service warm-up signal via browser redirect to: ${targetRedirect}`);
+
+    // HTTP 307 tells the user's browser to also wakeup the analysis service
+    return res.redirect(307, targetRedirect);
+  } catch (error) {
+    console.error("Warmup infrastructure redirection failed:", error);
+    res.status(500).json({ error: "Warmup routine failed" });
+  }
+});
+
 export default router;
