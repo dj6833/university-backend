@@ -25,103 +25,21 @@ router.get("/recommendations", async (req, res) => {
             }[];
 
         }
-        // ==========================================
-// DEBUG ENTRY MARKER
-// ==========================================
+        const timeoutSignal = AbortSignal.timeout(90000); //required in Prod as ANALYSIS_SERVICE goes offline and needs time to spin-up
 
-        const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-        const baseUrl = process.env.ANALYSIS_SERVICE_URL!.replace(/\/$/, '');
-        const healthUrl = `${baseUrl}/healthz`;
-        const targetUrl = `${baseUrl}/recommendations`;
-
-        console.log("Entering recommendations routine");
-
-// ==========================================
-// Phase 1: Safe Exponential Wake-Up Loop
-// ==========================================
-        const maxRetries = 10;
-        let attempt = 0;
-        let isAwake = false;
-
-        while (attempt < maxRetries) {
-            try {
-                attempt++;
-                console.log(`[Wake Loop ${attempt}/${maxRetries}] Sending browser-authenticated ping...`);
-
-                const wakeResponse = await fetch(healthUrl, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-                        'Accept-Language': 'en-US,en;q=0.5',
-                        'Sec-Fetch-Dest': 'document',
-                        'Sec-Fetch-Mode': 'navigate',
-                        'Sec-Fetch-Site': 'none',
-                        'Sec-Fetch-User': '?1',
-                        'Upgrade-Insecure-Requests': '1',
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; Gecko/20100101 Firefox/124.0'
-                    },
-                    signal: AbortSignal.timeout(15000)
-                });
-
-                console.log(`[Wake Loop ${attempt}/${maxRetries}] Status received: ${wakeResponse.status}`);
-
-                if (wakeResponse.status === 429 || wakeResponse.status === 503) {
-                    throw new Error(`Server is initializing container`);
-                }
-
-                if (wakeResponse.ok) {
-                    console.log(`Connection established. Python container is live.`);
-                    isAwake = true;
-                    break;
-                }
-
-                throw new Error(`Unexpected status code: ${wakeResponse.status}`);
-
-            } catch (error) {
-                console.warn(`[Wake Loop ${attempt}/${maxRetries}] ${error instanceof Error ? error.message : 'Proxy hold'}`);
-
-                if (attempt >= maxRetries) break;
-
-                // Safely backs off: 2s, 4s, 8s, then caps at 12s for all subsequent retries.
-                // This gives the proxy breathing room while keeping the wake signal active.
-                const dynamicDelay = Math.min(Math.pow(2, attempt) * 1000, 12000);
-                console.log(`Pacing next attempt. Sleeping for ${dynamicDelay / 1000}s...`);
-                await delay(dynamicDelay);
-            }
-        }
-
-        if (!isAwake) {
-            throw new Error("Could not wake up the Analysis Service within the time limit.");
-        }
-
-// ==========================================
-// Phase 2: Core Data Payload Execution
-// ==========================================
-        console.log("Container is live. Dispatching core data payload...");
-
-        const recommendationsResponseRaw = await fetch(targetUrl, {
+        const recommendationsResponseRaw = await fetch(`${process.env.ANALYSIS_SERVICE_URL}recommendations`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json',
             },
-            body: JSON.stringify({
-                api_username: process.env.RECOMMEND_ENROLLMENTS_API_USERNAME!,
+            body: JSON.stringify({  api_username: process.env.RECOMMEND_ENROLLMENTS_API_USERNAME!,
                 api_password: process.env.RECOMMEND_ENROLLMENTS_API_PASSWORD!,
                 student_id: userId,
-                max_records: maxRecordsToReturn
-            }),
-            signal: AbortSignal.timeout(30000)
+                max_records: maxRecordsToReturn}),
+            signal: timeoutSignal //if this isn't enough, a health-endpoint on Python service which can be called in advance might be needed
         });
 
-        if (!recommendationsResponseRaw.ok) {
-            throw new Error(`Analysis payload rejected with status: ${recommendationsResponseRaw.status}`);
-        }
-
-        console.log("Parsing validated JSON payload from Python analysis engine...");
         const recommendationsResponseRawJson = await recommendationsResponseRaw.json() as recommendationsAPIModel;
-
         const recommendationsResponse = recommendationsResponseRawJson as recommendationsAPIModel;
         const recommendedClasses = recommendationsResponse.recommended_classes;
         const recommendedClassIDs = recommendedClasses.map(item => Number(item.classId))
