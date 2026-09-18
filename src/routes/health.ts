@@ -2,6 +2,7 @@ import express from "express";
 import { sql } from "drizzle-orm";
 
 import { db } from "../db/index.js";
+import {sleep} from "../lib/utils";
 
 const router = express.Router();
 
@@ -29,9 +30,13 @@ router.get(`/${HEALTH_CHECK_URL_SLUG}`, async (req, res) => {
   }
 });
 
+
+
+
 // Open endpoint for services to check/wake-up backend
 router.get("/warmup/primary-webservice", async (req, res) => {
   try {
+    //await sleep(15000);
     res.status(200).json({ message: "Primary web service warmed up successfully" });
   } catch (error) {
     console.error("Health check failed:", error);
@@ -42,6 +47,7 @@ router.get("/warmup/primary-webservice", async (req, res) => {
 // Open endpoint for services to check/wake-up backend
 router.get("/warmup/database", async (req, res) => {
   try {
+    //await sleep(10000);
     await db.execute(sql`SELECT 1`);
     res.status(200).json({ message: "Database service warmed up successfully" });
   } catch (error) {
