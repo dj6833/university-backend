@@ -3,6 +3,7 @@ import { and, desc, eq, getTableColumns, ilike, or, sql, inArray } from "drizzle
 
 import {db} from "../db/index.js";
 import { classes, departments, enrollments, subjects, user, enrollmentClassCountsView  } from "../db/schema/index.js";
+import {string} from "better-auth";
 
 const router = express.Router();
 
@@ -175,6 +176,17 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
+
+      const userRole = (req.user?.role as string) || "";
+
+      //restrict so only ADMIN users can create/delete/update currently
+      if (!['admin'].includes(userRole)){
+          return res.status(403).json({
+              error: "Forbidden",
+              message: "Access Denied: This action is currently limited to Admin users"
+          });
+      }
+
     const {
       name,
       teacherId,
