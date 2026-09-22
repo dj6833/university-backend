@@ -22,6 +22,7 @@ export const auth = betterAuth({
     }),
     emailAndPassword: {
         enabled: true,
+        disableSignUp: true //prevent users creating new accounts until suitable controls are in place
     },
     user: {
         additionalFields: {
