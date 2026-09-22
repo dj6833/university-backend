@@ -74,6 +74,17 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
+
+      const userRole = (req.user?.role as string) || "";
+
+      //restrict so only ADMIN users can create/delete/update currently
+      if (!['admin'].includes(userRole)){
+          return res.status(403).json({
+              error: "Forbidden",
+              message: "Access Denied: This action is currently limited to Admin users"
+          });
+      }
+
     const { departmentId, name, code, description } = req.body;
 
     const [createdSubject] = await db
