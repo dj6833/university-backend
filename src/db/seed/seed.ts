@@ -14,7 +14,7 @@ import {seedData, classSeedImages} from "./seed-data.js";
 import {drizzle} from "drizzle-orm/neon-http";
 
 //region seeding-constants > >
-const usersToCreate:number = 2000; //200
+const usersToCreate:number = 1500; //200
 const adminsToCreate:number = 3
 const teacherPercentageToCreate:number = 0.05
 const departmentsToCreate:number = 10 ; // 2 //max 10 supported currently
@@ -25,7 +25,7 @@ const maxSubjectsPerDepartmentToCreate:number = 10 //max 10 supported currently
 const minClassesPerSubjectToCreate:number = 5 ; //1 //max 5 supported currently
 const maxClassesPerSubjectToCreate:number = 5 //max 5 supported currently
 //Randomise No. of class enrollments per student using min & max here
-const minClassesPerStudent:number = 0
+const minClassesPerStudent:number = 5
 const maxClassesPerStudent:number = 8
 //endregion
 
@@ -175,7 +175,7 @@ async function main() {
         accessTokenExpiresAt: null,
         refreshTokenExpiresAt: null,
         scope: null,
-        password: "8a10ac6c6814676fa0bb84048890168d:5f9518787bba30c12cd4fd002bf848001928e04779db544ca2281be8c5acb45140c6dda2bd2f72d437182a412a9c521458f120448ded5b0bbbc172f3cec0a6f9"
+        password: "3640934db69eef3bfb059ffaf317d563:c3b5dbed94cbce7fc5e485bf013a048c477575acb7e8a7de6312c468b93471094bd069ccb89d891e76656cf53800616d06d36fb971e6e836810b08388af3ef33"
     })
     // joannaoconnell3975@testmail.dev
     await db.insert(account).values({
