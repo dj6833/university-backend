@@ -11,10 +11,18 @@ This repository contains the primary server-side services, API routing, and data
 Node.js (Express) | PostgreSQL (Neon Serverless) | Drizzle-ORM | Better-auth | Docker
 
 ## 🏁 Getting Started
+
+### Prerequisites
+Before initialising the application, ensure you have access to an active, empty **PostgreSQL** instance (such as [Neon Serverless](https://neon.tech) or a local container environment) to host the application database.
+
+### Installation & Initialisation
 1. Clone this repository to your machine
-2. Install dependencies via your terminal: `npm install`
+2. Install frameworks and dependencies: `npm install`
 3. Configure your environment variables file by copying the `.env.example` file, rename the copy to `.env` and update it with your frontend URL, backend-analysis-server credentials, database connection strings, etc
-4. Run the development server; the API endpoints will begin listening for frontend requests
+4. Generate the local database structural migration assets: `npm run db:generate`
+5. Apply the migration scripts to provision the tables in your target database: `npm run db:migrate`
+6. (Optional) Populate the database with testing baseline data: `npm run db:seed`
+7. Run the development server; the API endpoints will begin listening for frontend requests
 
 ## 📜 Available Scripts
 
