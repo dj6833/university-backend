@@ -208,6 +208,16 @@ router.get("/:id/users", async (req, res) => {
       return res.status(400).json({ error: "Invalid role" });
     }
 
+    if(role === "student") {
+        const userRole = (req.user?.role as string) || "";
+        if (!["admin", "teacher"].includes(userRole)) {
+            return res.status(403).json({
+                error: "Forbidden",
+                message: "Access Denied: This action is unavailable for your profile"
+            });
+        }
+    }
+
     const currentPage = Math.max(1, +page);
     const limitPerPage = Math.max(1, +limit);
     const offset = (currentPage - 1) * limitPerPage;
