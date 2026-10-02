@@ -282,6 +282,15 @@ router.get("/:id", async (req, res) => {
 // List users in a class by role with pagination
 router.get("/:id/users", async (req, res) => {
     try {
+
+        const userRole = (req.user?.role as string) || "";
+        if (!["admin","teacher"].includes(userRole)){
+        return res.status(403).json({
+            error: "Forbidden",
+            message: "Access Denied: This action is unavailable for your profile"
+        });
+    }
+
     const classId = Number(req.params.id);
     const { role, page = 1, limit = 10 } = req.query;
 
