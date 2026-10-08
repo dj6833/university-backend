@@ -43,6 +43,13 @@
       "when": 1782999722561,
       "tag": "0005_parched_terrax",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791448801317,
+      "tag": "0006_sleepy_firebrand",
+      "breakpoints": true
     }
   ]
 }

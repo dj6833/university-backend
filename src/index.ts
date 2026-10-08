@@ -13,9 +13,11 @@ import departmentsRouter from "./routes/departments.js";
 import statsRouter from "./routes/stats.js";
 import enrollmentsRouter from "./routes/enrollments.js";
 import healthRouter from "./routes/health.js";
+import documentsRouter from "./routes/documents.js";
 
 import securityMiddleware from "./middleware/security.js";
 import {auth} from "./lib/auth.js";
+import { connectQueue } from "./lib/messageBroker.js";
 
 const app = express();
 //below line tells Express to trust the proxy's HTTPS header flags; required due to Render using a reverse-proxy which uses HTTPS externally but HTTP internally
@@ -48,10 +50,14 @@ app.use("/api/classes", classesRouter);
 app.use("/api/departments", departmentsRouter);
 app.use("/api/stats", statsRouter);
 app.use("/api/enrollments", enrollmentsRouter);
+app.use("/api/documents", documentsRouter);
 
 app.get("/", (req, res) => {
   res.send("Backend server is running!");
 });
+
+// Connect to message broker queues in background; queues are currently not essential core-functionality so runs as a non-blocking task to avoid hanging or crashing our core server
+void connectQueue(["university.document.requests"]);
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
