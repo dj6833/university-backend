@@ -1,13 +1,17 @@
 import express from "express";
-import { and, desc, eq, getTableColumns, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, sql, or } from "drizzle-orm";
 
 import { db } from "../db/index.js";
 import { documents } from "../db/schema/index.js";
 import { publishToQueue } from "../lib/messageBroker.js";
 
+import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { s3Client } from "../lib/s3Client.js";
+
 const router = express.Router();
 
-// 1. Get user document ledger requests with conditional status visibility rules
+//Get all available documents
 // GET /api/documents?page=1&limit=10
 router.get("/", async (req, res) => {
     try {
@@ -40,6 +44,19 @@ router.get("/", async (req, res) => {
 
         filterConditions.push(eq(documents.userId, userId))
 
+        filterConditions.push(
+            sql`(${documents.status} = 'completed'::document_status_enum OR ${documents.requestedByEndUser} = true)`
+        );
+
+        filterConditions.push(
+            sql`(${documents.status} != 'failed'::document_status_enum OR ${documents.id} = (
+                SELECT id FROM documents 
+                WHERE document_type = ${documents.documentType} 
+                AND user_id = ${userId}
+                ORDER BY created_at DESC LIMIT 1
+            ))`
+        );
+
         //todo - add logic for only seeing pending results where triggered by user
         //filterConditions.push(eq(documents.status, 'completed'::document_status_enum))
 
@@ -63,7 +80,7 @@ router.get("/", async (req, res) => {
             .from(documents)
             .where(whereClause);
 
-        const totalCount = countResult[0]?.count ?? 0;
+        const totalCount = Number(countResult[0]?.count ?? 0);
 
         const userDocuments = await db
             .select({
@@ -90,7 +107,7 @@ router.get("/", async (req, res) => {
     }
 });
 
-
+// Request a document
 // POST /api/documents
 router.post("/", async (req, res) => {
     try {
@@ -133,6 +150,65 @@ router.post("/", async (req, res) => {
     } catch (error) {
         console.error("POST /documents error:", error);
         res.status(500).json({ error: "Failed to generate document request" });
+    }
+});
+
+// Request a just-in-time secure document URL
+// GET /api/documents/:id/download
+router.get("/:id/download", async (req, res) => {
+    try {
+        const currentUserId = req.user?.id;
+        const documentId = req.params.id;
+
+        if (!currentUserId) {
+            return res.status(401).json({ error: "Authentication issue, no userId was found" });
+        }
+
+        const [documentRecord] = await db
+            .select()
+            .from(documents)
+            .where(
+                and(
+                    eq(documents.id, documentId),
+                    eq(documents.userId, currentUserId)
+                )
+            )
+            .limit(1);
+
+        if (!documentRecord) {
+            return res.status(404).json({ error: "Document not available." });
+        }
+
+        // Confirm the worker has actually finished compiling the file
+        if (documentRecord.status !== "completed" || !documentRecord.fileName) {
+            return res.status(400).json({
+                error: "Cannot process request until file has been generated"
+            });
+        }
+
+        const mode = req.query.mode; // e.g., ?mode=download
+        const s3CommandOptions: any = {
+            Bucket: process.env.R2_PRIVATE_BUCKET_NAME,
+            Key: documentRecord.fileName,
+        };
+
+        if (mode === "download") {
+            // Instructs the browser to instantly trigger its native "Save File As..." download dialogue prompt
+            s3CommandOptions.ResponseContentDisposition = `attachment; filename="${documentRecord.fileName.split('/').pop()}"`;
+        }
+
+        const command = new GetObjectCommand(s3CommandOptions);
+
+        //Request a cryptographic access link signed to expire after a short delay
+        const shortLivedPresignedUrl = await getSignedUrl(s3Client, command, {
+      expiresIn: 60, //industry standard 60-second window before link expires
+        });
+
+        return res.redirect(shortLivedPresignedUrl);
+
+    } catch (error: any) {
+        console.error("GET /documents/id/download error:", error);
+        res.status(500).json({ error: "Failed to generate download-document request" });
     }
 });
 

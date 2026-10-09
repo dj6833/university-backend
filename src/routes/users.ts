@@ -35,7 +35,7 @@ router.get("/", async (req, res) => {
             .from(user)
             .where(whereClause);
 
-        const totalCount = countResult[0]?.count ?? 0;
+        const totalCount = Number(countResult[0]?.count ?? 0);
 
         const usersList = await db
       .select()
@@ -128,7 +128,7 @@ router.get("/:id/departments", async (req, res) => {
             .leftJoin(enrollments, eq(enrollments.classId, classes.id))
             .where(eq(enrollments.studentId, userId));
 
-    const totalCount = countResult[0]?.count ?? 0;
+    const totalCount = Number(countResult[0]?.count ?? 0);
 
     const departmentsList =
       userRecord.role === "teacher"
@@ -232,7 +232,7 @@ router.get("/:id/subjects", async (req, res) => {
             .leftJoin(enrollments, eq(enrollments.classId, classes.id))
             .where(eq(enrollments.studentId, userId));
 
-    const totalCount = countResult[0]?.count ?? 0;
+    const totalCount = Number(countResult[0]?.count ?? 0);
 
     const subjectsList =
       userRecord.role === "teacher"
