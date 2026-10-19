@@ -1,6 +1,7 @@
-import('apminsight')
-  .then(({ default: AgentAPI }) => AgentAPI.config())
-  .catch(() => console.log('APM not available in this environment'));
+// blocking this for now as issue collecting backend logs on apminsight (tr-57)
+// import('apminsight')
+//   .then(({ default: AgentAPI }) => AgentAPI.config())
+//   .catch(() => console.log('APM not available in this environment'));
 
 import cors from "cors";
 import express from "express";
