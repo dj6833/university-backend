@@ -8,7 +8,10 @@ const isLocal = process.env.IS_LOCAL === "true";
 
 export const auth = betterAuth({
     secret: process.env.BetterAuthSecret!,
-    trustedOrigins: [process.env.FRONTEND_URL!],
+    trustedOrigins: [
+        process.env.FRONTEND_URL!,
+        "http://localhost:3000" //Vercel CLI development server proxy port
+    ],
     advanced: {
         // In production, frontend and backend are on different domains, requiring sameSite / secure variations
         defaultCookieAttributes: {
