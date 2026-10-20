@@ -4,15 +4,16 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "../db/index.js"; // your drizzle instance
 import * as schema from "../db/schema/auth.js";
 
+const isLocal = process.env.IS_LOCAL === "true";
+
 export const auth = betterAuth({
     secret: process.env.BetterAuthSecret!,
     trustedOrigins: [process.env.FRONTEND_URL!],
     advanced: {
-        // Force cookies to be shareable cross-domain (required for Prod where frontend & backend are different domains)
-        // Below still ensures this cookie can only be exchanged with backend
+        // In production, frontend and backend are on different domains, requiring sameSite / secure variations
         defaultCookieAttributes: {
-            sameSite: "none", // Mandatory for cross-origin setups
-            secure: true,     // Required by browsers when sameSite is "none"
+            sameSite: "lax", //isLocal ? "lax" : "none", - this comment can be removed if "lax" works across all environments now
+            secure: !isLocal,
             httpOnly: true, // Protects cookies from being read non-http such as js
         },
     },
