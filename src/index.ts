@@ -16,12 +16,15 @@ import healthRouter from "./routes/health.js";
 
 import securityMiddleware from "./middleware/security.js";
 import {auth} from "./lib/auth.js";
+import { proxySanitizer } from "./middleware/proxySanitiser.js";
 
 const app = express();
 //below line tells Express to trust the proxy's HTTPS header flags; required due to Render using a reverse-proxy which uses HTTPS externally but HTTP internally
 //Express gets confused and thinks the connection is insecure, causing it to fail cookie delivery
 app.set("trust proxy", 1);
 const PORT = 8000;
+
+app.use(proxySanitizer);
 
 if (!process.env.FRONTEND_URL) throw new Error("FRONTEND_URL is not set in .env file");
 
