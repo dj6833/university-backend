@@ -1,4 +1,4 @@
-import { type InferSelectModel, type InferInsertModel } from "drizzle-orm";
+import { type InferInsertModel } from "drizzle-orm";
 import {user} from "../schema/index.js";
 import {faker} from '@faker-js/faker';
 import {userSeedImages, fakeEmailDomains} from "./seed-data.js";
