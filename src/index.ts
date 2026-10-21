@@ -23,8 +23,9 @@ const app = express();
 //below line tells Express to trust the proxy's HTTPS header flags; required due to Render using a reverse-proxy which uses HTTPS externally but HTTP internally
 //Express gets confused and thinks the connection is insecure, causing it to fail cookie delivery
 app.set("trust proxy", 1);
-//have server return:
-//X-Robots-Tag; helps ensure that non-html files are also not indexed
+
+//have server return following http headers::
+//X-Robots-Tag; helps ensure that non-html files are also not indexed by crawlers
 //Referrer-Policy: Prevents leaking sensitive URL paths and query parameters to external websites/resources; only the root domain (origin) is shared
 app.use((req, res, next) => {
     res.setHeader('X-Robots-Tag', 'noindex, nofollow');

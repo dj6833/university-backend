@@ -14,7 +14,7 @@ import {seedData, classSeedImages} from "./seed-data.js";
 import {drizzle} from "drizzle-orm/neon-http";
 import {auth} from "../../lib/auth.js";
 import crypto from "crypto";
-import readline from "readline"; // Native Node.js module for terminal interaction
+import readline from "readline";
 import { type InferInsertModel } from "drizzle-orm";
 
 //region seeding-constants > >
