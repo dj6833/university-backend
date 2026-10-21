@@ -13,10 +13,9 @@ export const auth = betterAuth({
         "http://localhost:3000" //Vercel CLI development server proxy port
     ],
     advanced: {
-        // In production, frontend and backend are on different domains, requiring sameSite / secure variations
         defaultCookieAttributes: {
-            sameSite: "lax", //isLocal ? "lax" : "none", - this comment can be removed if "lax" works across all environments now
-            secure: !isLocal,
+            sameSite: "lax", // "lax" mode is more secure than "none" (possible now proxies make frontend/backend same-site)
+            secure: !isLocal, // true on HTTPS cloud environments, false on HTTP localhost
             httpOnly: true, // Protects cookies from being read non-http such as js
         },
     },
