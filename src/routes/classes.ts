@@ -4,6 +4,8 @@ import { and, desc, eq, getTableColumns, ilike, or, sql, inArray } from "drizzle
 import {db} from "../db/index.js";
 import { classes, departments, enrollments, subjects, user, enrollmentClassCountsView  } from "../db/schema/index.js";
 import {string} from "better-auth";
+import { USER_ROLES } from "../constants/index.js";
+import {authorise} from "../middleware/authorise.js";
 
 const router = express.Router();
 
@@ -177,10 +179,11 @@ router.get("/", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
 
-      const userRole = (req.user?.role as string) || "";
-
+      const currentUserRole = req.user?.role;
       //restrict so only ADMIN users can create/delete/update currently
-      if (!['admin'].includes(userRole)){
+      //enforce inline, rather than via middleware, for now as overriding middleware error message for demo
+      const allowedRoles: USER_ROLES[] = [USER_ROLES.ADMIN];
+      if (!currentUserRole || !allowedRoles.includes(currentUserRole)) {
           return res.status(403).json({
               error: "Forbidden",
               message: "Access Denied: This action is currently limited to Admin users"
@@ -280,105 +283,109 @@ router.get("/:id", async (req, res) => {
 });
 
 // List users in a class by role with pagination
-router.get("/:id/users", async (req, res) => {
+router.get("/:id/users", authorise([USER_ROLES.ADMIN, USER_ROLES.TEACHER]), async (req, res) => {
     try {
 
-        const userRole = (req.user?.role as string) || "";
-        if (!["admin","teacher"].includes(userRole)){
-        return res.status(403).json({
-            error: "Forbidden",
-            message: "Access Denied: This action is unavailable for your profile"
+        const classId = Number(req.params.id);
+        const { role, page = 1, limit = 10 } = req.query as unknown as {
+            role: USER_ROLES;
+            page?: number;
+            limit?: number;
+        };
+
+        if (!Number.isFinite(classId)) {
+            return res.status(400).json({error: "Invalid class id"});
+        }
+
+        if (role !== USER_ROLES.TEACHER && role !== USER_ROLES.STUDENT) {
+            return res.status(400).json({error: "Invalid role"});
+        }
+
+        const currentPage = Math.max(1, +page);
+        const limitPerPage = Math.max(1, +limit);
+        const offset = (currentPage - 1) * limitPerPage;
+
+        const baseSelect = {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            emailVerified: user.emailVerified,
+            image: user.image,
+            role: user.role,
+            imageCldPubId: user.imageCldPubId,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt,
+        };
+
+        const groupByFields = [
+            user.id,
+            user.name,
+            user.email,
+            user.emailVerified,
+            user.image,
+            user.role,
+            user.imageCldPubId,
+            user.createdAt,
+            user.updatedAt,
+        ];
+
+        const countResult =
+            role === USER_ROLES.TEACHER
+                ? await db
+                    .select({
+                        count: sql<number>`count(distinct
+                        ${user.id}
+                        )`
+                    })
+                    .from(user)
+                    .leftJoin(classes, eq(user.id, classes.teacherId))
+                    .where(and(eq(user.role, role), eq(classes.id, classId)))
+                : await db
+                    .select({
+                        count: sql<number>`count(distinct
+                        ${user.id}
+                        )`
+                    })
+                    .from(user)
+                    .leftJoin(enrollments, eq(user.id, enrollments.studentId))
+                    .where(and(eq(user.role, role), eq(enrollments.classId, classId)));
+
+        const totalCount = countResult[0]?.count ?? 0;
+
+        const usersList =
+            role === USER_ROLES.TEACHER
+                ? await db
+                    .select(baseSelect)
+                    .from(user)
+                    .leftJoin(classes, eq(user.id, classes.teacherId))
+                    .where(and(eq(user.role, role), eq(classes.id, classId)))
+                    .groupBy(...groupByFields)
+                    .orderBy(desc(user.createdAt))
+                    .limit(limitPerPage)
+                    .offset(offset)
+                : await db
+                    .select(baseSelect)
+                    .from(user)
+                    .leftJoin(enrollments, eq(user.id, enrollments.studentId))
+                    .where(and(eq(user.role, role), eq(enrollments.classId, classId)))
+                    .groupBy(...groupByFields)
+                    .orderBy(desc(user.createdAt))
+                    .limit(limitPerPage)
+                    .offset(offset);
+
+        res.status(200).json({
+            data: usersList,
+            pagination: {
+                page: currentPage,
+                limit: limitPerPage,
+                total: totalCount,
+                totalPages: Math.ceil(totalCount / limitPerPage),
+            },
         });
+    } catch (error) {
+        console.error("GET /classes/:id/users error:", error);
+        res.status(500).json({error: "Failed to fetch class users"});
     }
-
-    const classId = Number(req.params.id);
-    const { role, page = 1, limit = 10 } = req.query;
-
-    if (!Number.isFinite(classId)) {
-      return res.status(400).json({ error: "Invalid class id" });
-    }
-
-    if (role !== "teacher" && role !== "student") {
-      return res.status(400).json({ error: "Invalid role" });
-    }
-
-    const currentPage = Math.max(1, +page);
-    const limitPerPage = Math.max(1, +limit);
-    const offset = (currentPage - 1) * limitPerPage;
-
-    const baseSelect = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      emailVerified: user.emailVerified,
-      image: user.image,
-      role: user.role,
-      imageCldPubId: user.imageCldPubId,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-    };
-
-    const groupByFields = [
-      user.id,
-      user.name,
-      user.email,
-      user.emailVerified,
-      user.image,
-      user.role,
-      user.imageCldPubId,
-      user.createdAt,
-      user.updatedAt,
-    ];
-
-    const countResult =
-      role === "teacher"
-        ? await db
-            .select({ count: sql<number>`count(distinct ${user.id})` })
-            .from(user)
-            .leftJoin(classes, eq(user.id, classes.teacherId))
-            .where(and(eq(user.role, role), eq(classes.id, classId)))
-        : await db
-            .select({ count: sql<number>`count(distinct ${user.id})` })
-            .from(user)
-            .leftJoin(enrollments, eq(user.id, enrollments.studentId))
-            .where(and(eq(user.role, role), eq(enrollments.classId, classId)));
-
-    const totalCount = countResult[0]?.count ?? 0;
-
-    const usersList =
-      role === "teacher"
-        ? await db
-            .select(baseSelect)
-            .from(user)
-            .leftJoin(classes, eq(user.id, classes.teacherId))
-            .where(and(eq(user.role, role), eq(classes.id, classId)))
-            .groupBy(...groupByFields)
-            .orderBy(desc(user.createdAt))
-            .limit(limitPerPage)
-            .offset(offset)
-        : await db
-            .select(baseSelect)
-            .from(user)
-            .leftJoin(enrollments, eq(user.id, enrollments.studentId))
-            .where(and(eq(user.role, role), eq(enrollments.classId, classId)))
-            .groupBy(...groupByFields)
-            .orderBy(desc(user.createdAt))
-            .limit(limitPerPage)
-            .offset(offset);
-
-    res.status(200).json({
-      data: usersList,
-      pagination: {
-        page: currentPage,
-        limit: limitPerPage,
-        total: totalCount,
-        totalPages: Math.ceil(totalCount / limitPerPage),
-      },
-    });
-  } catch (error) {
-    console.error("GET /classes/:id/users error:", error);
-    res.status(500).json({ error: "Failed to fetch class users" });
-  }
 });
 
 export default router;

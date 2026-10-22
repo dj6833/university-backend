@@ -10,24 +10,13 @@ import {
   user,
 } from "../db/schema/index.js";
 import {string} from "better-auth";
+import { USER_ROLES } from "../constants/index.js";
 
 const router = express.Router();
 
 // Get all departments with optional search and pagination
 router.get("/", async (req, res) => {
   try {
-
-    const userRole = (req.user?.role as string) || "";
-
-    // Decided to allow all users to view department, as it's a filter for classes so makes sense
-    // Instead, we should limit who can CUD these records
-    // if (!['admin', 'teacher'].includes(userRole)){
-    //   return res.status(403).json({
-    //     error: "Forbidden",
-    //     message: "Access Denied: Departments are not available for your user profile."
-    //   });
-    // }
-
     const { search, page = 1, limit = 10 } = req.query;
 
     const currentPage = Math.max(1, +page);
@@ -86,10 +75,11 @@ router.get("/", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
 
-    const userRole = (req.user?.role as string) || "";
-
+    const currentUserRole = req.user?.role;
     //restrict so only ADMIN users can create/delete/update currently
-    if (!['admin'].includes(userRole)){
+    //enforce inline, rather than via middleware, for now as overriding middleware error message for demo
+    const allowedRoles: USER_ROLES[] = [USER_ROLES.ADMIN];
+    if (!currentUserRole || !allowedRoles.includes(currentUserRole)) {
       return res.status(403).json({
         error: "Forbidden",
         message: "Access Denied: This action is currently limited to Admin users"
@@ -149,7 +139,7 @@ router.get("/:id", async (req, res) => {
           .leftJoin(subjects, eq(classes.subjectId, subjects.id))
           .where(
             and(
-              eq(user.role, "student"),
+              eq(user.role, USER_ROLES.STUDENT),
               eq(subjects.departmentId, departmentId)
             )
           ),
@@ -276,19 +266,27 @@ router.get("/:id/classes", async (req, res) => {
 router.get("/:id/users", async (req, res) => {
   try {
     const departmentId = Number(req.params.id);
-    const { role, page = 1, limit = 10 } = req.query;
+    const { role, page = 1, limit = 10 } = req.query as unknown as {
+      role: USER_ROLES;
+      page?: number;
+      limit?: number;
+    };
 
     if (!Number.isFinite(departmentId)) {
       return res.status(400).json({ error: "Invalid department id" });
     }
 
-    if (role !== "teacher" && role !== "student") {
+    if (role !== USER_ROLES.TEACHER && role !== USER_ROLES.STUDENT) {
       return res.status(400).json({ error: "Invalid role" });
     }
 
-    if(role === "student") {
-      const userRole = (req.user?.role as string) || "";
-      if (!["admin", "teacher"].includes(userRole)) {
+    //enforce authorise inline, rather than via middleware, as has additional role-logic
+    const currentUserRole = req.user?.role;
+    // Restrict so only ADMIN or TEACHER users can see all user data
+    const allowedCurrentUserRoles: USER_ROLES[] = [USER_ROLES.ADMIN, USER_ROLES.TEACHER];
+    if (!currentUserRole || !allowedCurrentUserRoles.includes(currentUserRole)) {
+      // If current user is NOT an ADMIN or TEACHER, they are ONLY allowed to request the TEACHER role filter
+      if (role !== USER_ROLES.TEACHER) {
         return res.status(403).json({
           error: "Forbidden",
           message: "Access Denied: This action is unavailable for your profile"
@@ -325,7 +323,7 @@ router.get("/:id/users", async (req, res) => {
     ];
 
     const countResult =
-      role === "teacher"
+      role === USER_ROLES.TEACHER
         ? await db
             .select({ count: sql<number>`count(distinct ${user.id})` })
             .from(user)
@@ -347,7 +345,7 @@ router.get("/:id/users", async (req, res) => {
     const totalCount = countResult[0]?.count ?? 0;
 
     const usersList =
-      role === "teacher"
+      role === USER_ROLES.TEACHER
         ? await db
             .select(baseSelect)
             .from(user)
