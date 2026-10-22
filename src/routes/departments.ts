@@ -11,7 +11,6 @@ import {
 } from "../db/schema/index.js";
 import {string} from "better-auth";
 import { USER_ROLES } from "../constants/index.js";
-import {authorise} from "../middleware/authorise";
 
 const router = express.Router();
 
