@@ -4,6 +4,8 @@ import { eq, ilike, or, and, desc, sql, getTableColumns } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { classes, departments, enrollments, subjects, user } from "../db/schema/index.js";
 
+import { USER_ROLES } from "../constants";
+
 const router = express.Router();
 
 // Get all subjects with optional search, department filter, and pagination
@@ -75,10 +77,11 @@ router.get("/", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
 
-      const userRole = (req.user?.role as string) || "";
-
+      const currentUserRole = req.user?.role;
       //restrict so only ADMIN users can create/delete/update currently
-      if (!['admin'].includes(userRole)){
+      //enforce inline, rather than via middleware, for now as overriding middleware error message for demo
+      const allowedRoles: USER_ROLES[] = [USER_ROLES.ADMIN];
+      if (!currentUserRole || !allowedRoles.includes(currentUserRole)) {
           return res.status(403).json({
               error: "Forbidden",
               message: "Access Denied: This action is currently limited to Admin users"
@@ -204,13 +207,16 @@ router.get("/:id/users", async (req, res) => {
       return res.status(400).json({ error: "Invalid subject id" });
     }
 
-    if (role !== "teacher" && role !== "student") {
+    if (role !== USER_ROLES.TEACHER && role !== USER_ROLES.STUDENT) {
       return res.status(400).json({ error: "Invalid role" });
     }
 
-    if(role === "student") {
-        const userRole = (req.user?.role as string) || "";
-        if (!["admin", "teacher"].includes(userRole)) {
+    if(role === USER_ROLES.STUDENT) {
+        //enforce authorise inline, rather than via middleware, as has additional role-logic
+        const currentUserRole = req.user?.role;
+        // Restrict so only ADMIN or TEACHER users can student  data
+        const allowedCurrentUserRoles: USER_ROLES[] = [USER_ROLES.ADMIN, USER_ROLES.TEACHER];
+        if (!currentUserRole || !allowedCurrentUserRoles.includes(currentUserRole)) {
             return res.status(403).json({
                 error: "Forbidden",
                 message: "Access Denied: This action is unavailable for your profile"
@@ -247,7 +253,7 @@ router.get("/:id/users", async (req, res) => {
     ];
 
     const countResult =
-      role === "teacher"
+      role === USER_ROLES.TEACHER
         ? await db
             .select({ count: sql<number>`count(distinct ${user.id})` })
             .from(user)
@@ -263,7 +269,7 @@ router.get("/:id/users", async (req, res) => {
     const totalCount = countResult[0]?.count ?? 0;
 
     const usersList =
-      role === "teacher"
+      role === USER_ROLES.TEACHER
         ? await db
             .select(baseSelect)
             .from(user)
