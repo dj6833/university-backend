@@ -5,7 +5,7 @@ import {db} from "../db/index.js";
 import { classes, departments, enrollments, subjects, user, enrollmentClassCountsView  } from "../db/schema/index.js";
 import {string} from "better-auth";
 import { USER_ROLES } from "../constants/index.js";
-import {authorise} from "../middleware/authorise";
+import {authorise} from "../middleware/authorise.js";
 
 const router = express.Router();
 
