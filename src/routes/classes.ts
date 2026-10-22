@@ -4,7 +4,7 @@ import { and, desc, eq, getTableColumns, ilike, or, sql, inArray } from "drizzle
 import {db} from "../db/index.js";
 import { classes, departments, enrollments, subjects, user, enrollmentClassCountsView  } from "../db/schema/index.js";
 import {string} from "better-auth";
-import {USER_ROLES} from "../constants";
+import { USER_ROLES } from "../constants/index.js";
 import {authorise} from "../middleware/authorise";
 
 const router = express.Router();

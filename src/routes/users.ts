@@ -3,7 +3,7 @@ import { and, desc, eq, ilike, or, sql, getTableColumns } from "drizzle-orm";
 
 import { db } from "../db/index.js";
 import { classes, departments, enrollments, subjects, user } from "../db/schema/index.js";
-import {USER_ROLES} from "../constants";
+import { USER_ROLES } from "../constants/index.js";
 
 const router = express.Router();
 
