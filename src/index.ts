@@ -67,6 +67,7 @@ app.get("/", (req, res) => {
   res.send("Backend server is running!");
 });
 
+// DEBUG ONLY: Simulate Render free-tier cold-start latency
 if (process.env.NODE_ENV === 'production') {
     console.log("Simulating a 45-second cold start delay...");
     await new Promise(resolve => setTimeout(resolve, 45000));
