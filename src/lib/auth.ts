@@ -1,6 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-
+import { createAuthMiddleware } from "better-auth/api";
 import { db } from "../db/index.js"; // your drizzle instance
 import * as schema from "../db/schema/auth.js";
 
@@ -45,4 +45,43 @@ export const auth = betterAuth({
       },
     },
   },
+    plugins: [
+        {
+            id: "localSessionHint",
+            hooks: {
+                after: [
+                    {
+                        matcher: (ctx) => {
+                            const currentPath = ctx.path ?? "";
+                            return currentPath.includes("sign-in") ||
+                                   currentPath.includes("session") ||
+                                   currentPath.includes("verify");
+                        },
+                        handler: createAuthMiddleware(async (ctx) => {
+                            const newSession = ctx.context.newSession;
+
+                            if (newSession?.user) {
+                                const user = newSession.user;
+
+                                const sessionPayload = {
+                                    name: user.name || "User",
+                                    email: user.email,
+                                    image: user.image || "",
+                                    role: user.role,
+                                };
+
+                                // Set a non-HttpOnly cookie that frontend can parse, with Max-Age matching DB session timeout (currently 7 days=604800s)
+                                ctx.setHeader(
+                                    "Set-Cookie",
+                                    `localSessionHint=${encodeURIComponent(
+                                        JSON.stringify(sessionPayload)
+                                    )}; Path=/; Max-Age=604800; SameSite=Lax; Secure`
+                                );
+                            }
+                        })
+                    }
+                ]
+            }
+        }
+    ]
 });
