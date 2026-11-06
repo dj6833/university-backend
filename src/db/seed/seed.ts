@@ -12,22 +12,54 @@ import {generateSeedUsers} from "./seed-helper.js";
 import {getRandomInclusive} from "../../lib/utils.js";
 import {seedData, classSeedImages} from "./seed-data.js";
 import {drizzle} from "drizzle-orm/neon-http";
+import {auth} from "../../lib/auth.js";
+import crypto from "crypto";
+import readline from "readline";
+import { type InferInsertModel } from "drizzle-orm";
 
 //region seeding-constants > >
-const usersToCreate:number = 1500; //200
-const adminsToCreate:number = 3
-const teacherPercentageToCreate:number = 0.05
-const departmentsToCreate:number = 10 ; // 2 //max 10 supported currently
+const usersToCreate: number = 1500; //200
+const adminsToCreate: number = 3
+const teacherPercentageToCreate: number = 0.05
+const departmentsToCreate: number = 10; // 2 //max 10 supported currently
 //Randomise No. of Subjects per department using min & max here
-const minSubjectsPerDepartmentToCreate:number = 10 ; //3 //max 10 supported currently
-const maxSubjectsPerDepartmentToCreate:number = 10 //max 10 supported currently
+const minSubjectsPerDepartmentToCreate: number = 10; //3 //max 10 supported currently
+const maxSubjectsPerDepartmentToCreate: number = 10 //max 10 supported currently
 //Randomise No. of classes per subject using min & max here
-const minClassesPerSubjectToCreate:number = 5 ; //1 //max 5 supported currently
-const maxClassesPerSubjectToCreate:number = 5 //max 5 supported currently
+const minClassesPerSubjectToCreate: number = 5; //1 //max 5 supported currently
+const maxClassesPerSubjectToCreate: number = 5 //max 5 supported currently
 //Randomise No. of class enrollments per student using min & max here
-const minClassesPerStudent:number = 5
-const maxClassesPerStudent:number = 8
+const minClassesPerStudent: number = 5
+const maxClassesPerStudent: number = 8
 //endregion
+
+// =========================================================================
+// TARGET CONFIGURATION VALUE
+// Manually change this value here to switch seed password environment targets
+// Valid options: "DEV" | "STAGING" | "PROD"
+// =========================================================================
+const SEED_TARGET: "DEV" | "STAGING" | "PROD" = "PROD";
+
+
+const generateInviteCode = (name: string) => {
+    const prefix = name.substring(0, 3).toUpperCase().replace(" ", "");
+    const random = Math.random().toString(36).substring(2, 9).toUpperCase();
+    return `${prefix}-${random}`;
+};
+
+function confirmExecution(target: string): Promise<boolean> {
+    const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout,
+    });
+
+    return new Promise((resolve) => {
+        rl.question(`The script is set to create users for [${target}] environment (ensure you have set the DATABASE_URL to match this) - Do you want to continue? (y/n): `, (answer) => {
+            rl.close();
+            resolve(answer.trim().toLowerCase() === "y");
+        });
+    });
+}
 
 const args = process.argv.slice(2);
 const retainDBData = args.includes('--retain-db-data');
@@ -39,168 +71,145 @@ if (!process.env.DATABASE_URL) {
 const sqlCon = neon(process.env.DATABASE_URL);
 const db = drizzle({client: sqlCon});
 
-if (!retainDBData) {
-    console.log("Begin clearing DB data");
-    await reset(db, schema);
-    console.log("DB data has been cleared");
-} else {
-    console.log("User requested to retain existing DB records");
-}
-
-const generateInviteCode = (name: string) => {
-    const prefix = name.substring(0, 3).toUpperCase().replace(" ", "");
-    const random = Math.random().toString(36).substring(2, 9).toUpperCase();
-    return `${prefix}-${random}`;
-};
-
 async function main() {
+    const isConfirmed = await confirmExecution(SEED_TARGET);
+    if (!isConfirmed) {
+        console.log("Execution aborted by user.");
+        return;
+    }
+
+    if (!retainDBData) {
+        console.log("Begin clearing DB data");
+        await reset(db, schema);
+        console.log("DB data has been cleared");
+    } else {
+        console.log("User requested to retain existing DB records");
+    }
+
     console.log("Begin seeding");
 
     const capacities = [
         20, 25, 30, 35, 40, 45, 50
     ];
 
-    const usersToInsert = generateSeedUsers(usersToCreate,adminsToCreate,teacherPercentageToCreate);
+    // Use Better Auth's cryptographic runtime context for creating hashed passwords
+    const ctx = await auth.$context;
+    const hasher = ctx.password;
+
+    const usersToInsert = generateSeedUsers(usersToCreate, adminsToCreate, teacherPercentageToCreate);
+
+    const insertedUsers = await db.insert(user).values(usersToInsert).returning();
+
+    type NewUser = InferInsertModel<typeof user>;
+    const additionalUsersToInsert: NewUser[] = []
 
     /*
-    add test users (pwd stored separately off github as site now in Prod)
+    add test users (pwds stored privately in .env file)
      */
 
     var additionalUser = {
-        id: "PKjBSRLYnEoe3Y5F6gHNEhn0rJEfQLGP",
+        id: crypto.randomUUID(),
         name: "Laura Wilcox",
         email: "laura_wilcox_73@fakeserver.io",
-        emailVerified: false,
+        emailVerified: true,
         image: "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778674830/afrian-e-prasetyo-t3ityxHmCNY-unsplash_p49ltf_48x48.jpg",
         role: "admin" as UserRoles,
         imageCldPubId: "uploads/placeholder_value"
     };
-    usersToInsert.push(additionalUser);
+    additionalUsersToInsert.push(additionalUser);
     additionalUser = {
-        id: "5CuJqyne90XsAkqZHT9iqz2g2utF7vQq",
+        id: crypto.randomUUID(),
         name: "Gary Benson",
         email: "gary.benson987@outluke.com",
-        emailVerified: false,
+        emailVerified: true,
         image: "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778671736/afrian-e-prasetyo-vsqboehwiaw-unsplash_yzunmk_48_2e0a75.jpg",
         role: "teacher" as UserRoles,
         imageCldPubId: "uploads/placeholder_value"
     };
-    usersToInsert.push(additionalUser);
+    additionalUsersToInsert.push(additionalUser);
     additionalUser = {
-        id: "EXslqUsnjguOBURhn61fheG94EZj46UD",
+        id: crypto.randomUUID(),
         name: "Edward Haley",
         email: "edward.haley@dummybox.net",
-        emailVerified: false,
+        emailVerified: true,
         image: "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778674873/vedant-bathia-T4F2tMFFzZc-unsplash_i5pgwo_48x48.jpg",
         role: "teacher" as UserRoles,
         imageCldPubId: "uploads/placeholder_value"
     };
-    usersToInsert.push(additionalUser);
+    additionalUsersToInsert.push(additionalUser);
     additionalUser = {
-        id: "NodSIAbjXrk83GxsQ2WdEaqlPkoL42gI",
+        id: crypto.randomUUID(),
         name: "Bob Dean",
         email: "bob.dean115@abcmail.com",
-        emailVerified: false,
+        emailVerified: true,
         image: "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778674932/nicolas-MUYQsvtlw98-unsplash_lkmeka_48x48.jpg",
         role: "student" as UserRoles,
         imageCldPubId: "uploads/placeholder_value"
     };
-    usersToInsert.push(additionalUser);
+    additionalUsersToInsert.push(additionalUser);
     additionalUser = {
-        id: "CHvF5Z2AQhg7HNgguKbW8RD5uQT4wKQS",
+        id: crypto.randomUUID(),
         name: "Joanna Oconnell",
         email: "joannaoconnell3975@testmail.dev",
-        emailVerified: false,
+        emailVerified: true,
         image: "https://res.cloudinary.com/dnfko6vxu/image/upload/v1778674837/gilang-yuda-alyahya-66DFSxybtQ8-unsplash_c7rskn_48x48.jpg",
         role: "student" as UserRoles,
         imageCldPubId: "uploads/placeholder_value"
     };
-    usersToInsert.push(additionalUser);
+    additionalUsersToInsert.push(additionalUser);
 
-    const insertedUsers = await db.insert(user).values(usersToInsert).returning();
     /*
     add [account] records so we can login as our test users:
      */
-    //Laura_wilcox_73@fakeserver.io
-    await db.insert(account).values({
-        id: "Ol32C61ZBb7oiYkWIvKPIDTerTbdCHf3",
-        userId: "PKjBSRLYnEoe3Y5F6gHNEhn0rJEfQLGP",
-        accountId: "PKjBSRLYnEoe3Y5F6gHNEhn0rJEfQLGP",
-        providerId: "credential",
-        accessToken: null,
-        refreshToken: null,
-        idToken: null,
-        accessTokenExpiresAt: null,
-        refreshTokenExpiresAt: null,
-        scope: null,
-        password: "91db292961fc4bad0c40f8ea87a35635:0526c007ba4eb0e15a7db11bab9a3ad2b4bda20f9c9422ec1a37035f6f733f597085396ff62af22211512df1d4411f073f8d44eaa1e9fed26338f005050108e8"
-    })
-    //gary.benson987@outluke.com
-    await db.insert(account).values({
-        id: "6llYyzkAYOUvPTMQ1S8J48bNcQauujxz",
-        userId: "5CuJqyne90XsAkqZHT9iqz2g2utF7vQq",
-        accountId: "5CuJqyne90XsAkqZHT9iqz2g2utF7vQq",
-        providerId: "credential",
-        accessToken: null,
-        refreshToken: null,
-        idToken: null,
-        accessTokenExpiresAt: null,
-        refreshTokenExpiresAt: null,
-        scope: null,
-        password: "2c6d6a62fe0bb1e4095cf37c610dd111:553e910f9461cc9a20da816bad79eb4cb38916de2d3e397e1c6cddd29fa367b3100940fcad4059d2fc21a594439b36d8fdaa2763e5e42dba9bd85e592285031d"
-    })
-    //Edward.Haley@dummybox.net
-    await db.insert(account).values({
-        id: "Lla92bSMHVmPos5YBR5CovB8rgVYNx5u",
-        userId: "EXslqUsnjguOBURhn61fheG94EZj46UD",
-        accountId: "EXslqUsnjguOBURhn61fheG94EZj46UD",
-        providerId: "credential",
-        accessToken: null,
-        refreshToken: null,
-        idToken: null,
-        accessTokenExpiresAt: null,
-        refreshTokenExpiresAt: null,
-        scope: null,
-        password: "8a8024ac88f071b12bbbf2cec190c2fb:5f492c92471d59f0a90ba4da65868cbf985c73d993670e7fbeecafb6e8061d78e6cb775dac58784dec5dbf67eaeb2da67939f03f2dee79a90090c8278ff0dc6c"
-    })
-    //Bob.Dean115@abcmail.com
-    await db.insert(account).values({
-        id: "UEXGza56U8WolcOSCWoKWwHuBjcUrw9J",
-        userId: "NodSIAbjXrk83GxsQ2WdEaqlPkoL42gI",
-        accountId: "NodSIAbjXrk83GxsQ2WdEaqlPkoL42gI",
-        providerId: "credential",
-        accessToken: null,
-        refreshToken: null,
-        idToken: null,
-        accessTokenExpiresAt: null,
-        refreshTokenExpiresAt: null,
-        scope: null,
-        password: "3640934db69eef3bfb059ffaf317d563:c3b5dbed94cbce7fc5e485bf013a048c477575acb7e8a7de6312c468b93471094bd069ccb89d891e76656cf53800616d06d36fb971e6e836810b08388af3ef33"
-    })
-    // joannaoconnell3975@testmail.dev
-    await db.insert(account).values({
-        id: "LrWPBY4mMW8J1qGSYsTK0uxDgdTBMlBc",
-        userId: "CHvF5Z2AQhg7HNgguKbW8RD5uQT4wKQS",
-        accountId: "CHvF5Z2AQhg7HNgguKbW8RD5uQT4wKQS",
-        providerId: "credential",
-        accessToken: null,
-        refreshToken: null,
-        idToken: null,
-        accessTokenExpiresAt: null,
-        refreshTokenExpiresAt: null,
-        scope: null,
-        password: "f06efb853e14bdbdf437a0509e365e35:629fee68f6baeee933c15020639ac6e163cc6bcd62d8ed598fe4308ddfa51532acbf51d334f2257130e80fa6be2768b7a8881a9f081e74c5aecf1c50e32e4ce6"
-    })
+
+    for (const mockUser of additionalUsersToInsert) {
+        try {
+            // Build the dynamic env key using the hardcoded script config value
+            const formattedName = mockUser.name.replace(/\s+/g, '_').toUpperCase();
+            const expectedEnvKey = `SEED_USER_${formattedName}_${SEED_TARGET}_PWD`;
+
+            const plainTextPassword = process.env[expectedEnvKey];
+            if (!plainTextPassword) {
+                console.warn(`Warning: Expected environment variable "${expectedEnvKey}" is missing. Skipping user.`);
+                continue;
+            }
+            // Generate dynamic scrypt hash natively
+            const dynamicHash = await hasher.hash(plainTextPassword);
+            // Insert User Record
+            const mockUserInserted = await db.insert(user).values(mockUser).returning();
+
+            //add additional user to insertedUsers array, so these users are included in the remainder of the seed process
+            insertedUsers.push(...mockUserInserted);
+
+            // Insert Account Record
+            await db.insert(account).values({
+                id: crypto.randomUUID(),
+                userId: mockUser.id,
+                accountId: mockUser.id,
+                providerId: "credential",
+                accessToken: null,
+                refreshToken: null,
+                idToken: null,
+                accessTokenExpiresAt: null,
+                refreshTokenExpiresAt: null,
+                scope: null,
+                password: dynamicHash
+            }).returning();
+
+        } catch (error) {
+            console.error(`Creation failure for user ${mockUser.email}:`, error);
+        }
+    }
 
     const teacherIds = insertedUsers.filter((u) => u.role === "teacher").map((u) => u.id);
     const studentIds = insertedUsers.filter((u) => u.role === "student").map((u) => u.id);
 
-    // 2. Departments, Subjects, and Classes
+    // Departments, Subjects, and Classes
     const allClassIds: number[] = [];
     const classCapacityMap: Record<number, number> = {};
     const seededClassesTracker: Array<{ id: number; name: string }> = [];
 
-    for (const dept of seedData.slice(0,departmentsToCreate)) {
+    for (const dept of seedData.slice(0, departmentsToCreate)) {
         const deptCode = dept.name.substring(0, 3).toUpperCase();
 
         const [newDept] = await db.insert(departments)
@@ -215,10 +224,10 @@ async function main() {
             throw new Error('newDept cannot be null');
         }
 
-        const noOfSubjectsToCreate = getRandomInclusive(minSubjectsPerDepartmentToCreate,maxSubjectsPerDepartmentToCreate);
+        const noOfSubjectsToCreate = getRandomInclusive(minSubjectsPerDepartmentToCreate, maxSubjectsPerDepartmentToCreate);
 
         // Now iterating through subjects
-        for (const subjectData of dept.subjects.slice(0,noOfSubjectsToCreate)) {
+        for (const subjectData of dept.subjects.slice(0, noOfSubjectsToCreate)) {
             const [newSubject] = await db.insert(subjects)
                 .values({
                     name: subjectData.name,
@@ -233,9 +242,9 @@ async function main() {
                 throw new Error('newSubject cannot be null');
             }
 
-            const noOfClassesToCreate = getRandomInclusive(minClassesPerSubjectToCreate,maxClassesPerSubjectToCreate);
+            const noOfClassesToCreate = getRandomInclusive(minClassesPerSubjectToCreate, maxClassesPerSubjectToCreate);
 
-            const classesToInsert = subjectData.classes.slice(0,noOfClassesToCreate).map((c) => {
+            const classesToInsert = subjectData.classes.slice(0, noOfClassesToCreate).map((c) => {
                 const imageCloudUrl = classSeedImages[Math.floor(Math.random() * classSeedImages.length)] || 'null';
                 const imageCloudIdWithExt = imageCloudUrl.substring(imageCloudUrl.lastIndexOf('/') + 1) || 'null';
                 const imageCloudID = imageCloudIdWithExt.substring(0, imageCloudIdWithExt.lastIndexOf('.')) || 'null';
@@ -263,7 +272,7 @@ async function main() {
                 classCapacityMap[c.id] = c.capacity;
             });
 
-            seededClassesTracker.push(...newClasses.map((c) => ({ id: c.id, name: c.name })));
+            seededClassesTracker.push(...newClasses.map((c) => ({id: c.id, name: c.name})));
         }
     }
 
@@ -328,4 +337,6 @@ async function main() {
 
 }
 
+
 main().catch(console.error);
+
