@@ -50,6 +50,13 @@
       "when": 1792619145897,
       "tag": "0006_melted_infant_terrible",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793986860314,
+      "tag": "0007_loose_sue_storm",
+      "breakpoints": true
     }
   ]
 }
