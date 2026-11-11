@@ -57,6 +57,13 @@
       "when": 1793986860314,
       "tag": "0007_loose_sue_storm",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794438025451,
+      "tag": "0008_grant-core-services-app-access",
+      "breakpoints": true
     }
   ]
 }
